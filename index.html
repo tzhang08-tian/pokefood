@@ -1,0 +1,4269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CrazyFood</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@200;300&family=Special+Elite&family=Lobster&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+
+:root {
+  --bg:        #ffffff;
+  --border:    #d8d8d8;
+  --border-hi: #b8b8b8;
+  --gray:      #999;
+  --gray-mid:  #666;
+  --gray-dk:   #444;
+}
+
+body {
+  background: var(--bg);
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+}
+
+/* ── API Key Modal ── */
+#api-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 500;
+  display: flex; align-items: center; justify-content: center;
+}
+#api-dialog {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem 2.4rem;
+  width: 360px;
+}
+#api-dialog h2 {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--gray-mid); margin-bottom: 1.2rem;
+}
+#api-has-key-msg {
+  font-size: 14px; color: var(--gray-dk);
+  line-height: 1.65; margin-bottom: 1.2rem;
+}
+#api-input-row {
+  display: flex; gap: .5rem; margin-bottom: 1.2rem;
+}
+input[type=password] {
+  flex: 1; background: #f0f0f0;
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: .45rem .75rem; color: #111; font-size: 12px;
+  outline: none; transition: border-color .15s; font-family: monospace;
+}
+input[type=password]:focus { border-color: var(--gray-mid); }
+
+/* ── Full-screen layout ── */
+.app {
+  position: relative;
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Character panel fills entire screen ── */
+.char-panel {
+  position: absolute; inset: 0;
+  background: var(--bg);
+}
+
+#shadow-canvas {
+  position: absolute; inset: 0;
+  pointer-events: none; display: none;
+}
+
+#three-mount {
+  position: absolute; inset: 0; display: none;
+}
+
+#face-canvas {
+  position: absolute; inset: 0;
+  pointer-events: none; display: none;
+}
+
+.placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1.2rem;
+}
+#placeholder-text {
+  display: flex; flex-wrap: nowrap;
+  justify-content: center; align-items: center;
+  white-space: nowrap;
+  font-family: 'Lobster', cursive;
+  font-size: 42px;
+  -webkit-text-stroke: 1.2px #111;
+  paint-order: stroke fill;
+  cursor: default; user-select: none;
+  filter: url(#retro-text-filter);
+}
+/* Nutrient fact hint — shown top-center when hovering a placeholder letter */
+#ph-nutrient-hint {
+  position: absolute;
+  top: 1.6rem; left: 50%;
+  transform: translateX(-50%);
+  max-width: 70%;
+  text-align: center;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+#ph-nutrient-hint.show { opacity: 1; }
+#ph-nutrient-hint b { color: #777; }
+.ph-char {
+  display: inline-block;
+  animation: phFloat var(--pf-d, 3s) ease-in-out infinite var(--pf-a, 0s),
+             phColor var(--pc-d, 4s) linear infinite var(--pc-a, 0s);
+  translate: var(--flee-x, 0px) var(--flee-y, 0px);
+  transition: translate 0.4s cubic-bezier(.25,.46,.45,.94);
+}
+.ph-space { display: inline-block; width: 18px; }
+@keyframes phFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(var(--pf-h, -5px)); }
+}
+@keyframes phColor {
+  0%   { color: hsl(0,45%,58%); }
+  16%  { color: hsl(60,45%,52%); }
+  33%  { color: hsl(120,45%,50%); }
+  50%  { color: hsl(180,45%,50%); }
+  66%  { color: hsl(240,45%,62%); }
+  83%  { color: hsl(300,45%,58%); }
+  100% { color: hsl(360,45%,58%); }
+}
+
+/* ── Spinning circle loading mode ── */
+#placeholder-text.ph-spinning {
+  display: block !important;
+  position: relative;
+  width: 500px; height: 500px;
+  font-size: 42px;
+  animation: phSpin 12s linear infinite;
+  animation-play-state: paused; /* JS starts it after entry animation */
+  white-space: normal;
+}
+@keyframes phSpin {
+  to { transform: rotate(360deg); }
+}
+#placeholder-text.ph-spinning .ph-char,
+#placeholder-text.ph-spinning .ph-space {
+  position: absolute;
+  left: 50%; top: 50%;
+  margin-left: -0.3em; margin-top: -0.55em;
+  /* suppress phFloat; keep phColor for rainbow shimmer */
+  animation: phColor var(--pc-d, 4s) linear infinite var(--pc-a, 0s) !important;
+  /* translate stays active so flee-mouse effect still works */
+}
+#placeholder-text.ph-spinning .ph-space {
+  width: auto;
+}
+
+/* ── Nutrient list — top-left, items accumulate and stay ── */
+#speech-display {
+  position: absolute;
+  top: 5rem; left: 1.6rem;
+  z-index: 20; pointer-events: none;
+  display: none;
+  width: 380px;
+  overflow: visible;
+}
+#speech-inner {
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+  transform-origin: left center;
+}
+#left-scroll-zone {
+  position: absolute;
+  top: 0; left: 0;
+  width: 460px; height: 100%;
+  z-index: 19;
+  display: none;
+  cursor: ns-resize;
+}
+
+@keyframes speechFloat {
+  0%, 100% {
+    transform: translateY(0px);
+    filter: drop-shadow(0 3px 8px rgba(0,0,0,0.12));
+  }
+  50% {
+    transform: translateY(-9px);
+    filter: drop-shadow(0 14px 18px rgba(0,0,0,0.05));
+  }
+}
+
+.speech-item {
+  margin-bottom: 1.5rem;
+  animation: speechFloat 4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.speech-item-label {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 11px; font-weight: 400;
+  letter-spacing: .10em; text-transform: uppercase;
+  color: var(--txt-label, var(--gray-mid)); margin-bottom: .38rem;
+}
+
+.speech-item-body {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 17px; line-height: 1.75;
+  color: var(--txt-body, #111);
+}
+.speech-char {
+  display: inline-block;
+  animation: charFloat var(--cd, 2.5s) ease-in-out infinite var(--ca, 0s);
+  scale: var(--sq-x, 1) 1;
+  translate: var(--sq-tx, 0px) 0;
+  transform-origin: left center;
+}
+.speech-char.reading {
+  color: #e03020 !important;
+  -webkit-text-stroke: 0px transparent !important;
+}
+@keyframes charFloat {
+  0%, 100% { transform: translate(0, 0); }
+  50%       { transform: translate(var(--cx, 0px), var(--cy, -2px)); }
+}
+@keyframes speechColor {
+  0%   { color: hsl(0,45%,58%); }
+  16%  { color: hsl(60,45%,52%); }
+  33%  { color: hsl(120,45%,50%); }
+  50%  { color: hsl(180,45%,50%); }
+  66%  { color: hsl(240,45%,62%); }
+  83%  { color: hsl(300,45%,58%); }
+  100% { color: hsl(360,45%,58%); }
+}
+
+/* Layout wrapper — handles fly-to-top/bottom; inner .speech-item keeps the float anim */
+.speech-item-wrap {
+  position: relative;
+  width: 380px;
+}
+/* Compact chip shown when items are in the column */
+.speech-item-wrap.sp-compact .speech-item-body  { display: none; }
+.speech-item-wrap.sp-compact .speech-item-label {
+  white-space: nowrap;
+  font-family: 'Lobster', cursive;
+  font-size: 19px;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  -webkit-text-stroke: 1.8px #1a1a1a;
+  paint-order: stroke fill;
+  margin-bottom: 0;
+  animation: speechColor var(--cc-d, 5s) linear infinite var(--cc-a, 0s),
+             phFloat var(--pf-d, 3.5s) ease-in-out infinite var(--pf-a, 0s);
+}
+
+/* Retro sliders */
+#retro-ctrl {
+  position: absolute; bottom: 3.5rem; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 1.2rem; z-index: 15;
+  background: rgba(8,8,8,.72); border: 1px solid var(--border);
+  border-radius: 20px; padding: .35rem 1rem;
+  font-size: 10px; color: var(--gray-mid); letter-spacing: .06em;
+  align-items: center;
+}
+#retro-ctrl label { display: flex; align-items: center; gap: .4rem; }
+#retro-ctrl input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 72px; height: 3px; background: var(--border-hi);
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+/* Default: white square — rolls via JS-driven --thumb-rot; rainbow via --thumb-bg/--thumb-glow */
+#retro-ctrl input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px; border-radius: 2px;
+  background: var(--thumb-bg, #fff);
+  box-shadow: var(--thumb-glow, none);
+  cursor: grab;
+  transform: rotate(var(--thumb-rot, 0deg));
+  transition: background 0.3s, box-shadow 0.3s;
+}
+#retro-ctrl input[type=range].dragging::-webkit-slider-thumb {
+  cursor: grabbing;
+  transition: none;
+  transform: rotate(var(--thumb-rot, 0deg));
+  background: var(--thumb-bg, #fff);
+  box-shadow: var(--thumb-glow, none);
+}
+/* Firefox */
+#retro-ctrl input[type=range]::-moz-range-thumb {
+  width: 12px; height: 12px; border-radius: 2px; border: none;
+  background: var(--thumb-bg, #fff);
+  cursor: grab;
+  transform: rotate(var(--thumb-rot, 0deg));
+}
+#retro-ctrl input[type=range].dragging::-moz-range-thumb {
+  cursor: grabbing;
+  background: var(--thumb-bg, #fff);
+  transform: rotate(var(--thumb-rot, 0deg));
+}
+
+#hint-3d {
+  position: absolute; bottom: 1.2rem; left: 50%; transform: translateX(-50%);
+  font-size: 10px; color: var(--gray-mid); letter-spacing: .08em;
+  background: rgba(8,8,8,.75); padding: .3rem .9rem; border-radius: 20px;
+  border: 1px solid var(--border);
+  pointer-events: none; opacity: 0; transition: opacity 1s;
+  z-index: 10; white-space: nowrap;
+}
+#hint-3d.show { opacity: 1; }
+
+/* ── Right overlay — no background, no border, just floating elements ── */
+.right {
+  position: absolute;
+  top: 0; right: 0;
+  width: 200px; height: 100%;
+  z-index: 20;
+  display: flex; flex-direction: column;
+  align-items: flex-end;
+  padding: 1.4rem 1.2rem;
+  gap: .7rem;
+  pointer-events: none;
+}
+
+/* Upload — compact square, top-right */
+#upload-zone {
+  width: 90px; height: 90px;
+  border: 1px dashed var(--border-hi); border-radius: 10px;
+  background: rgba(255,255,255,0.88);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: .3rem;
+  cursor: pointer; position: relative;
+  transition: border-color .2s, background .2s;
+  color: var(--gray);
+  pointer-events: all;
+}
+#upload-zone:hover, #upload-zone.over {
+  border-color: var(--gray-mid); background: rgba(255,255,255,0.98);
+}
+#upload-zone .upload-plus { font-size: 26px; font-weight: 300; line-height: 1; }
+#upload-zone .upload-hint { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+#upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* Right-side text elements */
+#error {
+  display: none; font-size: 11px; color: #c00;
+  line-height: 1.5; text-align: right; max-width: 180px;
+}
+
+#food-name {
+  display: none;
+  font-family: 'Cinzel', serif;
+  font-size: 10px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--gray-dk);
+  text-align: right;
+}
+
+#progress { display: none; width: 100%; }
+.step {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: .5rem; padding: .2rem 0; font-size: 9px;
+  font-family: 'Cinzel', serif; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--gray); transition: color .3s;
+}
+.step.active { color: #111; }
+.step.done   { color: var(--gray-mid); }
+.dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--border-hi); flex-shrink: 0; transition: background .3s;
+  order: 2;
+}
+.step span { order: 1; }
+.step.active .dot { background: #111; animation: blink .7s infinite; }
+.step.done   .dot { background: var(--gray-mid); animation: none; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+#personality {
+  display: none;
+  font-family: 'Cinzel', serif;
+  font-size: 9px; color: var(--gray-mid);
+  letter-spacing: .08em;
+  line-height: 1.9;
+  text-align: right; max-width: 180px;
+}
+
+button {
+  background: #111; color: #fff;
+  font-weight: 700; font-size: 11px; letter-spacing: .06em;
+  border: none; border-radius: 6px; padding: .4rem .9rem;
+  cursor: pointer; white-space: nowrap;
+  transition: opacity .15s; font-family: 'Times New Roman', Times, serif;
+  pointer-events: all;
+}
+button:hover { opacity: .75; }
+button:disabled { opacity: .3; cursor: not-allowed; }
+button.ghost {
+  background: rgba(255,255,255,0.85);
+  color: var(--gray-mid); border: 1px solid var(--border); font-weight: 400;
+}
+button.ghost:hover { border-color: var(--border-hi); color: #333; }
+
+#reset-btn { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dot { animation: none !important; }
+}
+
+/* ── Food Card button (top-center) ── */
+#card-btn {
+  position: fixed; top: .9rem; left: 50%; transform: translateX(-50%);
+  z-index: 90; display: none;
+  background: rgba(14,14,18,.82);
+  color: rgba(255,255,255,.85);
+  border: 1px solid rgba(255,255,255,.16);
+  font-family: 'Cinzel', serif;
+  font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
+  padding: .38rem 1rem; border-radius: 20px; cursor: pointer;
+  white-space: nowrap;
+  align-items: center; gap: .55rem;
+  transition: background .2s, border-color .2s;
+  pointer-events: all;
+}
+#card-btn.cb-show { display: flex; }
+#card-btn:hover { background: rgba(30,30,36,.95); border-color: rgba(255,255,255,.32); }
+#card-btn .cb-arrow { font-size: 14px; opacity: .7; }
+
+/* ── Card view overlay ── */
+#card-view {
+  position: fixed; inset: 0; z-index: 300;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: .9rem;
+  background: transparent;
+  opacity: 0; pointer-events: none;
+  transition: opacity .45s cubic-bezier(.4,0,.2,1);
+  perspective: 1100px;
+  perspective-origin: 50% 44%;
+  overflow: hidden;
+}
+#card-view.cv-active { opacity: 1; pointer-events: all; }
+/* Grayscale background: screenshot injected as --bg-img via JS */
+#card-view::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background-image: var(--bg-img, none);
+  background-size: 100% 100%;
+  background-position: center;
+  filter: grayscale(1) brightness(0.52) blur(1px);
+  transform: scale(1.02); /* hide blur edge fringing */
+  pointer-events: none;
+}
+
+#card-back-btn {
+  position: fixed; top: 1rem; left: 1.2rem; z-index: 310;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
+  color: rgba(255,255,255,.65); font-family: 'Cinzel', serif;
+  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+  padding: .35rem .85rem; border-radius: 20px; cursor: pointer;
+  transition: all .2s; pointer-events: all;
+}
+#card-back-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
+
+/* ── The food card ── */
+.food-card {
+  position: relative; z-index: 1;
+  width: clamp(340px, 88vw, 430px);
+  border-radius: 18px; overflow: hidden;
+  border: 5px solid rgba(50,80,140,.65); /* color set by JS from theme */
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.08),
+    0 32px 90px rgba(0,0,0,.80);
+  opacity: 0;
+  transition: opacity .35s ease;
+  cursor: default;
+  will-change: transform;
+}
+#card-view.cv-active .food-card { opacity: 1; }
+/* holographic shine — position driven by --sx/--sy updated from JS tilt */
+.food-card::after {
+  content: ''; position: absolute; inset: 0; z-index: 200; pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse at calc(var(--sx, 50) * 1%) calc(var(--sy, 45) * 1%),
+      rgba(255,255,255,.20) 0%,
+      rgba(190,150,255,.14) 28%,
+      rgba(100,220,255,.09) 54%,
+      transparent 72%
+    ),
+    linear-gradient(118deg,
+      transparent 32%, rgba(255,255,255,.04) 48%, rgba(180,140,255,.05) 56%, transparent 74%);
+  border-radius: inherit;
+  mix-blend-mode: screen;
+}
+
+/* card header */
+.card-hdr {
+  display: flex; align-items: center; gap: .42rem;
+  padding: .52rem 80px .44rem .8rem; /* right padding keeps name away from the oval */
+  position: relative;
+}
+.card-badge {
+  font-family: 'Bebas Neue', sans-serif; font-size: 16px; font-weight: 400;
+  letter-spacing: .1em; text-transform: uppercase;
+  background: rgba(0,0,0,.28); color: rgba(255,255,255,.92);
+  padding: .08rem .5rem .02rem; border-radius: 4px; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,.2);
+}
+.card-name {
+  font-family: 'Lobster', cursive;
+  font-size: 24px; font-weight: 400;
+  -webkit-text-stroke: 1.5px #111;
+  paint-order: stroke fill;
+  letter-spacing: .03em; text-transform: none;
+  color: hsl(0,45%,58%);
+  animation: phColor 5s linear infinite -1.2s;
+  flex: 1; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-type-icon { display: none; }
+/* Cal oval — direct child of food-card, floats above WebGL canvas */
+.card-cal {
+  position: absolute;
+  right: 10px;
+  top: 6px;
+  width: 62px; height: 90px;
+  z-index: 100;  /* must beat the GPU-composited WebGL canvas */
+}
+.cal-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;   /* ellipse on a tall element */
+  border: 4px solid rgba(255,255,255,.60);
+  pointer-events: all;
+}
+.cal-fill {
+  position: absolute; inset: 4px;
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+  pointer-events: all;
+}
+.card-cal-label {
+  display: block; font-size: 11px; letter-spacing: .18em;
+  color: rgba(255,255,255,.7); text-transform: uppercase;
+  font-family: 'Bebas Neue', sans-serif;
+  line-height: 1;
+}
+.card-cal-num {
+  font-family: 'Cinzel', serif; font-size: 21px; font-weight: 700;
+  color: #fff; letter-spacing: -.02em; line-height: 1;
+}
+.card-type-icon { font-size: 18px; flex-shrink: 0; }
+
+/* model area */
+.card-model-area {
+  position: relative; width: 100%; height: 355px;
+  background: #08080e; overflow: hidden;
+}
+.card-model-area::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, transparent 50%, rgba(6,6,10,.5) 100%);
+}
+.card-model-area #three-mount {
+  position: absolute !important; inset: 0 !important; display: block !important;
+}
+
+/* italic subheader */
+.card-subhdr {
+  padding: .38rem .85rem; text-align: center;
+  font-family: 'Special Elite', monospace; font-size: 8.5px; letter-spacing: .04em;
+  font-style: italic; line-height: 1.55;
+  color: rgb(var(--card-rgb, 50,80,140));
+  background: rgba(var(--card-rgb, 50,80,140), .08);
+  border-top: 1px solid rgba(var(--card-rgb, 50,80,140), .22);
+  border-bottom: 1px solid rgba(var(--card-rgb, 50,80,140), .14);
+}
+
+/* ability/attack rows */
+.card-body { background: #fafaf5; padding: .7rem .85rem .5rem; }
+.card-attack { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .55rem; }
+.card-attack + .card-attack { padding-top: .5rem; border-top: 1px solid #e8e8e0; }
+.card-atk-icons {
+  font-size: 9px; line-height: 1; padding-top: 3px; flex-shrink: 0;
+  color: rgb(var(--card-rgb, 50,80,140)); letter-spacing: .05em;
+}
+.card-atk-main  { flex: 1; min-width: 0; }
+.card-atk-name  {
+  font-family: 'Cinzel', serif; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .05em; color: #111; margin-bottom: .12rem;
+}
+.card-atk-desc  { font-family: 'Special Elite', monospace; font-size: 8.5px; line-height: 1.55; color: #444; }
+.card-atk-dmg   {
+  font-family: 'Cinzel', serif; font-size: 17px; font-weight: 700;
+  color: #111; flex-shrink: 0; padding-top: 2px; letter-spacing: -.01em;
+}
+
+/* rule box */
+.card-rule {
+  margin: 0 .65rem .48rem;
+  border: 1px solid #d0ccc4; border-radius: 5px;
+  padding: .3rem .55rem;
+  background: rgba(238,235,228,.85);
+  font-size: 8px; line-height: 1.6; color: #555;
+  font-style: italic; font-family: 'Special Elite', monospace;
+}
+
+/* footer bar */
+.card-footer {
+  background: #dad8d2; border-top: 1px solid #c4c1ba;
+  padding: .32rem .8rem;
+  display: flex; align-items: center; gap: .28rem;
+  font-size: 7.5px; color: #555;
+  font-family: 'Cinzel', serif; letter-spacing: .05em;
+}
+.card-ftr-item { display: flex; align-items: center; gap: .25rem; }
+.card-ftr-item .fi {
+  font-size: 7px; text-transform: uppercase; letter-spacing: .06em;
+  font-family: 'Cinzel', serif; font-weight: 700;
+  color: rgb(var(--card-rgb, 50,80,140));
+  border: 1px solid rgba(var(--card-rgb, 50,80,140),.45);
+  padding: .05rem .28rem; border-radius: 2px;
+}
+.card-ftr-sep { height: 10px; width: 1px; background: #aaa8a2; margin: 0 .1rem; }
+.card-ftr-right { margin-left: auto; font-size: 7px; color: #999; letter-spacing: .04em; }
+
+/* panel slide-out when entering card view */
+#speech-display, #left-scroll-zone {
+  transition: transform .44s cubic-bezier(.77,0,.175,1), opacity .3s;
+}
+#speech-display.cv-out, #left-scroll-zone.cv-out {
+  transform: translateX(-120%) !important; opacity: 0;
+}
+.right { transition: transform .4s cubic-bezier(.77,0,.175,1), opacity .3s; }
+.right.cv-out { transform: translateX(160%); opacity: 0; }
+/* keep retro ctrl and back button above the ::before grayscale layer */
+#card-view #retro-ctrl { position: absolute; z-index: 1; }
+
+/* ── Color picker ──────────────────────────────────────────────────────── */
+.cv-selectable { cursor: pointer; }
+
+/* Non-text elements: inset blue rectangle */
+.cv-selected {
+  outline: 4px solid #1a8fff !important;
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px rgba(26,143,255,.25), 0 0 14px rgba(26,143,255,.55) !important;
+}
+/* Text-color targets: drop-shadow traces the actual glyph outline */
+.cv-selected[data-pick-prop="color"],
+.cv-selected[data-pick-prop="cal-text"] {
+  outline: none !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 0 2px #1a8fff) drop-shadow(0 0 6px rgba(26,143,255,.65)) !important;
+}
+.cv-picking #card-model-area,
+.cv-picking #card-model-area * { cursor: none !important; }
+/* Hide the bg color overlay when user is sampling another element's colour */
+.cv-picking #model-bg-color { pointer-events: none; }
+
+#cv-cursor {
+  position: fixed;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255,255,255,.95);
+  box-shadow: 0 0 0 1.5px rgba(0,0,0,.75), 0 2px 8px rgba(0,0,0,.5);
+  pointer-events: none; z-index: 9999;
+  display: none;
+  transform: translate(-50%, -50%);
+}
+#cv-cursor::before {
+  content: ''; position: absolute;
+  left: calc(50% - 0.75px); bottom: calc(100% + 4px);
+  width: 1.5px; height: 10px;
+  background: rgba(255,255,255,.85);
+  box-shadow: 0 0 0 .5px rgba(0,0,0,.5);
+}
+#cv-cursor::after {
+  content: ''; position: absolute;
+  left: calc(50% - 0.75px); top: calc(100% + 4px);
+  width: 1.5px; height: 10px;
+  background: rgba(255,255,255,.85);
+  box-shadow: 0 0 0 .5px rgba(0,0,0,.5);
+}
+
+/* ── Card Library ────────────────────────────────────────────────────────── */
+#lib-add-btn {
+  position: absolute;
+  top: 16px; right: 16px;
+  z-index: 300;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.14);
+  border: 2.5px solid rgba(255,255,255,.55);
+  color: #fff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 18px rgba(0,0,0,.45);
+  transition: background .18s, transform .18s, box-shadow .18s;
+  opacity: 0;
+  pointer-events: none;
+}
+#lib-add-btn svg { display: block; }
+.cv-active #lib-add-btn {
+  opacity: 1;
+  pointer-events: all;
+}
+#lib-add-btn:hover {
+  background: rgba(255,255,255,.28);
+  transform: scale(1.12);
+  box-shadow: 0 6px 28px rgba(0,0,0,.6);
+}
+#lib-add-btn:active { transform: scale(0.97); }
+#lib-add-btn:disabled { opacity: .4; pointer-events: none; }
+
+/* Fly-out card animation */
+.lib-fly-clone {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9998;
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.85);
+  transition:
+    left .58s cubic-bezier(.55,0,.45,1),
+    top  .58s cubic-bezier(.55,0,.45,1),
+    width  .58s cubic-bezier(.55,0,.45,1),
+    height .58s cubic-bezier(.55,0,.45,1),
+    border-radius .58s,
+    opacity .58s;
+}
+
+/* Thumbnail dock */
+#lib-dock {
+  position: fixed;
+  bottom: 60px; right: 60px;
+  z-index: 850;
+  width: 210px;
+  height: 272px;
+  pointer-events: none;
+}
+#lib-dock:not(:empty) { pointer-events: all; }
+.lib-thumb-wrap {
+  position: absolute;
+  bottom: 0; right: 0;
+  cursor: pointer;
+}
+/* Top card — straight, hover lifts */
+.lib-thumb-top {
+  z-index: 10;
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+}
+.lib-thumb-top:hover { transform: translateY(-10px) scale(1.04); }
+/* Behind card — tilted counter-clockwise from bottom-right */
+.lib-thumb-behind {
+  z-index: 9;
+  transform: rotate(-9deg);
+  transform-origin: bottom right;
+}
+.lib-thumb {
+  display: block;
+  width: 174px; height: 243px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 10px 34px rgba(0,0,0,.75);
+}
+.lib-thumb-count {
+  position: absolute;
+  bottom: 8px; right: 8px;
+  background: rgba(0,0,0,.78);
+  color: #fff;
+  font-size: 11px;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: .1em;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Library overlay */
+#lib-overlay {
+  position: fixed; inset: 0;
+  z-index: 900;
+  background: rgba(6,6,14,.88);
+  backdrop-filter: blur(2px);
+  display: none;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity .3s;
+}
+#lib-overlay.lib-open {
+  display: flex;
+  opacity: 1;
+}
+#lib-overlay-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 28px 14px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  flex-shrink: 0;
+}
+#lib-overlay-title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: .10em;
+  color: rgba(255,255,255,.85);
+}
+#lib-close-btn {
+  background: none; border: none;
+  color: rgba(255,255,255,.55);
+  font-size: 22px;
+  cursor: pointer;
+  transition: color .15s;
+  line-height: 1;
+  padding: 4px 8px;
+}
+#lib-close-btn:hover { color: #fff; }
+#lib-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px 32px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-auto-rows: max-content;
+  gap: 30px;
+  align-content: start;
+}
+.lib-card-item {
+  cursor: pointer;
+  border-radius: 13px;
+  overflow: hidden;
+  width: 70%;
+  margin: 0 auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,.65);
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s;
+}
+.lib-card-item img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.lib-card-item:hover {
+  transform: scale(1.08) translateY(-6px);
+  box-shadow: 0 22px 56px rgba(0,0,0,.85);
+}
+.lib-card-item.lib-long-pressed {
+  transform: scale(1.04);
+  box-shadow: 0 12px 40px rgba(0,0,0,.9);
+}
+
+/* Long-press delete menu */
+#lib-delete-menu {
+  position: fixed;
+  z-index: 1100;
+  background: rgba(18,18,26,.96);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px;
+  padding: 6px 0;
+  box-shadow: 0 12px 40px rgba(0,0,0,.8);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity .15s, transform .15s;
+  pointer-events: none;
+}
+#lib-delete-menu.lib-menu-open {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: all;
+}
+#lib-delete-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  color: #ff5f5f;
+  font-size: 13px;
+  letter-spacing: .06em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s;
+}
+#lib-delete-menu button:hover {
+  background: rgba(255,95,95,.12);
+}
+#lib-empty {
+  margin: auto;
+  color: rgba(255,255,255,.3);
+  font-size: 13px;
+  letter-spacing: .1em;
+  text-align: center;
+}
+
+/* Card zoom overlay */
+#lib-zoom-overlay {
+  position: fixed; inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  opacity: 0;
+  transition: opacity .22s;
+}
+#lib-zoom-overlay.lib-open {
+  display: flex;
+  opacity: 1;
+}
+#lib-zoom-img {
+  max-width: min(88vw, 460px);
+  max-height: 82vh;
+  border-radius: 18px;
+  box-shadow: 0 40px 100px rgba(0,0,0,.95);
+  cursor: default;
+  pointer-events: none;
+}
+#lib-zoom-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  cursor: default;
+}
+#lib-download-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 26px;
+  background: rgba(255,255,255,.10);
+  border: 1.5px solid rgba(255,255,255,.30);
+  border-radius: 40px;
+  color: rgba(255,255,255,.88);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  letter-spacing: .18em;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background .18s, border-color .18s, transform .18s;
+}
+#lib-download-btn:hover {
+  background: rgba(255,255,255,.20);
+  border-color: rgba(255,255,255,.6);
+  transform: translateY(-2px);
+}
+#lib-download-btn:active { transform: translateY(0); }
+
+/* Greyscale veil for main content when library is open */
+.app.lib-bw {
+  filter: grayscale(1) brightness(0.5);
+  transition: filter .4s;
+}
+
+/* Live-3D bar — shown when library card is opened in interactive mode */
+#lib-live-bar {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 960;
+  padding: 16px 28px;
+  background: linear-gradient(to bottom, rgba(0,0,0,.72) 0%, transparent 100%);
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+#lib-live-bar.active { display: flex; pointer-events: all; }
+#lib-live-bar-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: .22em;
+  color: rgba(255,255,255,.72);
+}
+#lib-live-back-btn {
+  background: rgba(255,255,255,.13);
+  border: 1.5px solid rgba(255,255,255,.32);
+  color: rgba(255,255,255,.9);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  letter-spacing: .15em;
+  padding: 7px 20px;
+  border-radius: 24px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background .15s, border-color .15s;
+}
+#lib-live-back-btn:hover {
+  background: rgba(255,255,255,.24);
+  border-color: rgba(255,255,255,.55);
+}
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- Retro-effect filter for the placeholder text — driven by #retro-ctrl sliders, mirrors RetroShader -->
+<svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
+  <defs>
+    <filter id="retro-text-filter" x="-60%" y="-60%" width="220%" height="220%" color-interpolation-filters="sRGB">
+      <feGaussianBlur id="ph-blur" in="SourceGraphic" stdDeviation="0" result="ph-blurred"/>
+      <feMorphology id="ph-morph" in="ph-blurred" operator="dilate" radius="0" result="ph-morphed"/>
+      <feTurbulence id="ph-turb" type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="7" result="ph-noise"/>
+      <feDisplacementMap id="ph-displace" in="ph-morphed" in2="ph-noise" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
+
+<!-- Food Card button — top center, shown after results load -->
+<button id="card-btn">generate food card <span class="cb-arrow">→</span></button>
+
+<!-- Color picker cursor (fixed overlay, pointer-events:none) -->
+<div id="cv-cursor"></div>
+
+<!-- Hidden native color input for model background picking -->
+<input type="color" id="cv-bg-input" value="#08080e" style="position:fixed;left:-200px;top:-200px;width:1px;height:1px;opacity:0;">
+
+<!-- Card view overlay -->
+<div id="card-view">
+  <button id="card-back-btn">← Back</button>
+  <button id="lib-add-btn" title="add card to library" aria-label="add card to library">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="9"/>
+      <line x1="11" y1="7" x2="11" y2="15"/>
+      <line x1="7" y1="11" x2="15" y2="11"/>
+    </svg>
+  </button>
+  <div class="food-card cv-selectable" id="food-card" data-pick-prop="border-color">
+    <div class="card-hdr cv-selectable" id="card-hdr" data-pick-prop="background">
+      <span class="card-badge cv-selectable" id="cc-badge" data-pick-prop="background">BASIC</span>
+      <span class="card-name cv-selectable"  id="cc-name"  data-pick-prop="color">FOOD NAME</span>
+      <span class="card-type-icon" id="cc-icon">✨</span>
+    </div>
+    <!-- Cal oval: direct child of food-card so it layers above the WebGL canvas -->
+    <div class="card-cal">
+      <div class="cal-ring cv-selectable" data-pick-prop="cal-stroke"></div>
+      <div class="cal-fill cv-selectable" data-pick-prop="background">
+        <span class="card-cal-num cv-selectable" id="cc-cal" data-pick-prop="cal-text">0</span>
+        <span class="card-cal-label cv-selectable" data-pick-prop="cal-text">cal</span>
+      </div>
+    </div>
+    <div class="card-model-area cv-selectable" id="card-model-area" data-pick-prop="model-bg">
+      <!-- hidden anchor for showPicker() — not interactive -->
+      <input type="color" id="model-bg-color" tabindex="-1"
+        style="position:absolute;left:0;top:0;width:0;height:0;opacity:0;pointer-events:none;border:none;padding:0;">
+      <!-- #three-mount is moved here on open -->
+    </div>
+    <div class="card-subhdr cv-selectable" id="cc-tagline" data-pick-prop="background">Nutrition Star</div>
+    <div class="card-body cv-selectable" id="cc-abilities" data-pick-prop="background"></div>
+    <div class="card-rule cv-selectable"   id="cc-rule"      data-pick-prop="background"></div>
+    <div class="card-footer cv-selectable" id="cc-footer"    data-pick-prop="background"></div>
+  </div>
+</div>
+
+<!-- Card Library Thumbnail Dock -->
+<div id="lib-dock"></div>
+
+<!-- Card Library Overlay -->
+<div id="lib-overlay">
+  <div id="lib-overlay-hdr">
+    <span id="lib-overlay-title">CARD LIBRARY</span>
+    <button id="lib-close-btn">✕</button>
+  </div>
+  <div id="lib-grid"></div>
+</div>
+
+<!-- Single Card Zoom -->
+<div id="lib-zoom-overlay">
+  <div id="lib-zoom-inner">
+    <img id="lib-zoom-img" alt="">
+    <button id="lib-download-btn">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 1v8M4 6l3 3 3-3"/><path d="M1 11h12"/>
+      </svg>
+      DOWNLOAD
+    </button>
+  </div>
+</div>
+
+<!-- Live-3D bar: shown when a library card is opened in interactive 3D mode -->
+<div id="lib-live-bar">
+  <span id="lib-live-bar-title">CARD LIBRARY</span>
+  <button id="lib-live-back-btn">← BACK</button>
+</div>
+
+<!-- Long-press delete context menu -->
+<div id="lib-delete-menu">
+  <button id="lib-delete-btn">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <polyline points="1,3 13,3"/><path d="M5,3V2h4v1"/><path d="M2,3l1,9h6l1-9"/>
+    </svg>
+    Delete Card
+  </button>
+</div>
+
+<!-- API Key Modal (shown on page load) -->
+<div id="api-modal">
+  <div id="api-dialog">
+    <h2>Anthropic API Key</h2>
+    <div id="api-has-key-msg" style="display:none">API key is configured. You're ready to go.</div>
+    <div id="api-input-row" style="display:none">
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." />
+    </div>
+    <button id="api-close-btn">Close</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- Full-screen character panel -->
+  <div class="char-panel">
+    <div class="placeholder" id="placeholder">
+      <div id="placeholder-text"></div>
+      <div id="ph-nutrient-hint"></div>
+    </div>
+    <canvas id="shadow-canvas"></canvas>
+    <div id="three-mount"></div>
+    <canvas id="face-canvas"></canvas>
+
+    <!-- Transparent zone that intercepts wheel events on the left, keeping OrbitControls from zooming -->
+    <div id="left-scroll-zone"></div>
+
+    <!-- Nutrient items accumulate here, top-left -->
+    <div id="speech-display"><div id="speech-inner"></div></div>
+
+    <div id="hint-3d">drag to rotate &nbsp;·&nbsp; scroll to zoom</div>
+    <div id="retro-ctrl">
+      <label>pixel <input type="range" id="r-pixel" min="2" max="16" step="1" value="6"></label>
+      <label>levels <input type="range" id="r-levels" min="2" max="8" step="1" value="4"></label>
+      <label>dots <input type="range" id="r-dots" min="0" max="16" step="1" value="0"></label>
+      <label>crystal <input type="range" id="r-crystal" min="0" max="60" step="1" value="0"></label>
+      <label>blur <input type="range" id="r-blur" min="0" max="20" step="1" value="0"></label>
+    </div>
+  </div>
+
+  <!-- Floating right overlay: upload box + text only, no panel background -->
+  <div class="right">
+    <div id="upload-zone">
+      <span class="upload-plus">+</span>
+      <span class="upload-hint">photo</span>
+      <input type="file" id="file-input" accept="image/*" />
+    </div>
+
+    <div id="error"></div>
+    <div id="food-name"></div>
+
+    <div id="progress">
+      <div class="step" id="s1"><span>Analyzing food...</span><div class="dot"></div></div>
+      <div class="step" id="s2"><span>Building 3D model...</span><div class="dot"></div></div>
+      <div class="step" id="s3"><span>Building personality...</span><div class="dot"></div></div>
+      <div class="step" id="s4"><span>Preparing speech...</span><div class="dot"></div></div>
+    </div>
+
+    <div id="personality"></div>
+    <button class="ghost" id="reset-btn">Start over</button>
+  </div>
+
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls }  from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass }     from 'three/addons/postprocessing/ShaderPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const PRESET_FACES = [
+  'faces/1.jpg','faces/2.jpg','faces/3.jpg','faces/4.jpg',
+  'faces/5.jpg','faces/6.jpg','faces/7.jpg',
+];
+
+if (window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.addEventListener('voiceschanged', () => window.speechSynthesis.getVoices());
+}
+
+// ── State ─────────────────────────────────────────────────────────────────
+let API_KEY = localStorage.getItem('cf_key') || '';
+let rafId = null;
+let speechTimer = null;
+let speechList = [];
+let speechIdx = 0;
+let mouthOpen = false;
+let talking = false;
+let currentAudio = null;
+let currentFaceData = null;
+let faceFeatures = null;
+let pixelCur = 6, pixelTarget = 6;
+let levelsCur = 4, levelsTarget = 4;
+let halftoneCur = 0, halftoneTarget = 0;
+let dotSizeCur = 8, dotSizeTarget = 8;
+let crystalCur = 0, crystalTarget = 0;
+let crystalSizeCur = 12, crystalSizeTarget = 12;
+let crystalTimeout = null;
+let blurCur = 0, blurTarget = 0;
+let blurTimeout = null;
+let speechScrollOff = 0;
+let textColorCur = 0, textColorTarget = 0, bgFrameCount = 0;
+let textLayout = 'left'; // 'left' | 'topbottom'
+const sliderDragging   = new Set(); // ids of sliders currently held by user
+const sliderAutoMoving = new Set(); // ids of sliders moving due to auto-randomize
+// Rolling rotation: accumulated angle per slider, driven by value delta each frame
+const sliderRot  = { 'r-pixel': 0, 'r-levels': 0, 'r-dots': 0, 'r-crystal': 0, 'r-blur': 0 };
+const sliderPrev = { 'r-pixel': 6, 'r-levels': 4, 'r-dots': 0, 'r-crystal': 0, 'r-blur': 0 };
+// Degrees per unit — physics-based (track=72px, thumb=12px sq, circ≈37.7px)
+const sliderDeg  = { 'r-pixel': 49, 'r-levels': 115, 'r-dots': 43, 'r-crystal': 22, 'r-blur': 34 };
+// Rainbow state — driven by a dedicated RAF loop while any slider is dragging
+let rainbowHue = 0;
+let rainbowRaf = null;
+function rainbowLoop() {
+  if (sliderDragging.size === 0 && sliderAutoMoving.size === 0) { rainbowRaf = null; return; }
+  rainbowHue = (rainbowHue + 3.5) % 360;
+  const col = `hsl(${rainbowHue.toFixed(1)},100%,60%)`;
+  sliderDragging.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.setProperty('--thumb-bg',   col);
+      el.style.setProperty('--thumb-glow', `0 0 8px ${col}`);
+    }
+  });
+  sliderAutoMoving.forEach(id => {
+    if (sliderDragging.has(id)) return; // dragging already handled above
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.setProperty('--thumb-bg',   col);
+      el.style.setProperty('--thumb-glow', `0 0 8px ${col}`);
+    }
+  });
+  rainbowRaf = requestAnimationFrame(rainbowLoop);
+}
+// Tiny offscreen canvas for background-luminance sampling
+const _bgSampler = document.createElement('canvas');
+_bgSampler.width = 8; _bgSampler.height = 8;
+const _bgCtx = _bgSampler.getContext('2d');
+let shadowCtx2D = null;
+let dirLight = null, fillLight = null;
+let extraMeshes = [];  // fiber grass + fat blobs
+
+// ── API Modal ─────────────────────────────────────────────────────────────
+{
+  const modal     = document.getElementById('api-modal');
+  const hasKeyMsg = document.getElementById('api-has-key-msg');
+  const inputRow  = document.getElementById('api-input-row');
+  const keyInput  = document.getElementById('api-key-input');
+  const closeBtn  = document.getElementById('api-close-btn');
+
+  if (API_KEY) {
+    hasKeyMsg.style.display = 'block';
+    inputRow.style.display  = 'none';
+  } else {
+    hasKeyMsg.style.display = 'none';
+    inputRow.style.display  = 'flex';
+  }
+
+  closeBtn.addEventListener('click', () => {
+    const k = keyInput?.value?.trim();
+    if (k) { API_KEY = k; localStorage.setItem('cf_key', API_KEY); }
+    modal.style.display = 'none';
+  });
+}
+
+// ── Retro post-process shader ─────────────────────────────────────────────
+const RetroShader = {
+  uniforms: {
+    tDiffuse:    { value: null },
+    resolution:  { value: new THREE.Vector2(1, 1) },
+    pixelSize:   { value: 6.0  },
+    levels:      { value: 4.0  },
+    saturation:  { value: 1.55 },
+    halftone:    { value: 0.0  },
+    dotSize:     { value: 8.0  },
+    crystalize:  { value: 0.0  },
+    crystalSize: { value: 12.0 },
+    blurAmount:  { value: 0.0  },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform vec2  resolution;
+    uniform float pixelSize;
+    uniform float levels;
+    uniform float saturation;
+    uniform float halftone;
+    uniform float dotSize;
+    uniform float crystalize;
+    uniform float crystalSize;
+    uniform float blurAmount;
+    varying vec2 vUv;
+
+    // Pseudo-random 2-D hash for Voronoi seed placement
+    vec2 voronoiHash(vec2 p) {
+      p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+      return fract(sin(p) * 43758.5453);
+    }
+
+    // 5×5 weighted-tap Gaussian blur — radius (in px) grows with blurAmount
+    vec4 gaussianSample(sampler2D tex, vec2 uv, vec2 res, float radiusPx) {
+      vec2  texel = radiusPx / res;
+      vec4  sum   = vec4(0.0);
+      float wsum  = 0.0;
+      for (int x = -2; x <= 2; x++) {
+        for (int y = -2; y <= 2; y++) {
+          float w = exp(-float(x*x + y*y) / 6.0);
+          sum  += texture2D(tex, uv + vec2(float(x), float(y)) * texel) * w;
+          wsum += w;
+        }
+      }
+      return sum / wsum;
+    }
+
+    // Halftone dot mask: returns 1.0 if this fragment is inside a channel dot
+    float htMask(vec2 fc, float ang, float cellSize, vec2 res, out vec2 sampleUv) {
+      float c = cos(ang), s = sin(ang);
+      vec2 rp   = vec2(fc.x*c - fc.y*s, fc.x*s + fc.y*c) / cellSize;
+      vec2 cell = floor(rp) + 0.5;
+      sampleUv  = clamp(vec2(cell.x*c + cell.y*s, -cell.x*s + cell.y*c) * cellSize / res, 0.0, 1.0);
+      return length(rp - cell);
+    }
+
+    void main() {
+      // ── Retro pass ──────────────────────────────────────────────────────
+      vec2 block = pixelSize / resolution;
+      vec2 uv    = block * floor(vUv / block);
+      // Gaussian blur softens the source before retro/halftone/crystal stylize it
+      vec4 col   = blurAmount > 0.05 ? gaussianSample(tDiffuse, uv, resolution, blurAmount)
+                                     : texture2D(tDiffuse, uv);
+      float lum  = dot(col.rgb, vec3(0.299, 0.587, 0.114));
+      col.rgb    = mix(vec3(lum), col.rgb, saturation);
+      col.rgb    = clamp(col.rgb, 0.0, 1.0);
+      col.rgb    = floor(col.rgb * levels + 0.5) / levels;
+
+      // ── Color halftone pass ─────────────────────────────────────────────
+      vec2 fc = vUv * resolution;
+      vec2 spR, spG, spB;
+
+      // R channel at 15°, G at 75°, B at 45° (classic halftone angles)
+      float distR = htMask(fc, 0.2618, dotSize, resolution, spR);
+      float distG = htMask(fc, 1.3090, dotSize, resolution, spG);
+      float distB = htMask(fc, 0.7854, dotSize, resolution, spB);
+
+      // CMY inks: cyan = 1-R, magenta = 1-G, yellow = 1-B
+      float iC = 1.0 - texture2D(tDiffuse, spR).r;
+      float iM = 1.0 - texture2D(tDiffuse, spG).g;
+      float iY = 1.0 - texture2D(tDiffuse, spB).b;
+
+      // Dot radius grows with ink density; darker original = larger dot
+      float mC = step(distR, sqrt(iC) * 0.65);
+      float mM = step(distG, sqrt(iM) * 0.65);
+      float mY = step(distB, sqrt(iY) * 0.65);
+
+      // Subtractive CMY on white: each ink absorbs its complementary channel
+      vec3 ht = vec3(1.0);
+      ht.r -= mC * iC;   // cyan dot absorbs red
+      ht.g -= mM * iM;   // magenta dot absorbs green
+      ht.b -= mY * iY;   // yellow dot absorbs blue
+      ht = clamp(ht, 0.0, 1.0);
+
+      // Blend retro → halftone (alpha preserved from original render)
+      col.rgb = mix(col.rgb, ht, halftone);
+
+      // ── Crystallize (Voronoi) pass ────────────────────────────────────────
+      if (crystalize > 0.001) {
+        vec2 px      = vUv * resolution;
+        vec2 cellId  = floor(px / crystalSize);
+        float minD   = 1.0e9;
+        vec2 nearUV  = vUv;
+        for (int j = -1; j <= 1; j++) {
+          for (int i = -1; i <= 1; i++) {
+            vec2 nb   = cellId + vec2(float(i), float(j));
+            vec2 seed = nb + voronoiHash(nb);       // seed inside cell (0-1 offset)
+            float d   = length(px - seed * crystalSize);
+            if (d < minD) {
+              minD    = d;
+              nearUV  = clamp(seed * crystalSize / resolution, 0.0, 1.0);
+            }
+          }
+        }
+        vec4 cSamp = texture2D(tDiffuse, nearUV);
+        // Quantize cell colours for the flat-polygon look
+        cSamp.rgb  = floor(cSamp.rgb * levels + 0.5) / levels;
+        col        = mix(col, cSamp, crystalize);
+      }
+
+      gl_FragColor = col;
+    }
+  `,
+};
+
+let renderer, scene, camera, controls, mesh, composer, retroPass;
+let threeInited = false;
+let currentData = null;
+let cardViewActive = false;
+let cardRaf = null;
+let cardTiltTX = 0, cardTiltTY = 0; // target rotation degrees
+let cardTiltCX = 0, cardTiltCY = 0; // current (lerped) rotation degrees
+let cardEnterT  = 0;                 // enter animation progress 0→1
+let selectedCardEl = null;           // element being color-picked
+let cvPickProp = '';                 // 'color' or 'background'
+let cvPickCanvas = null;             // 1×1 offscreen canvas for pixel sampling
+
+// ── Event wiring ──────────────────────────────────────────────────────────
+document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f?.type.startsWith('image/')) handleFile(f);
+  else showErr('Please drop an image file.');
+});
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+document.getElementById('r-pixel').addEventListener('input', e => {
+  pixelCur = pixelTarget = +e.target.value;
+});
+document.getElementById('r-levels').addEventListener('input', e => {
+  levelsCur = levelsTarget = +e.target.value;
+});
+document.getElementById('r-dots').addEventListener('input', e => {
+  const v = +e.target.value;
+  if (v === 0) {
+    halftoneTarget = halftoneCur = 0;
+  } else {
+    dotSizeCur = dotSizeTarget = v;
+    halftoneTarget = halftoneCur = 1;
+  }
+});
+document.getElementById('r-crystal').addEventListener('input', e => {
+  const v = +e.target.value;
+  if (v === 0) {
+    crystalTarget = crystalCur = 0;
+  } else {
+    crystalSizeCur = crystalSizeTarget = v;
+    crystalTarget = crystalCur = 1;
+  }
+});
+document.getElementById('r-blur').addEventListener('input', e => {
+  blurCur = blurTarget = +e.target.value;
+});
+
+// Drag-state: add .dragging class while any slider thumb is held
+['r-pixel', 'r-levels', 'r-dots', 'r-crystal', 'r-blur'].forEach(id => {
+  document.getElementById(id).addEventListener('mousedown', () => {
+    sliderDragging.add(id);
+    document.getElementById(id).classList.add('dragging');
+    if (!rainbowRaf) rainbowRaf = requestAnimationFrame(rainbowLoop);
+  });
+});
+window.addEventListener('mouseup', () => {
+  sliderDragging.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('dragging');
+    el.style.removeProperty('--thumb-bg');
+    el.style.removeProperty('--thumb-glow');
+  });
+  sliderDragging.clear();
+});
+
+// Wheel-scroll for the nutrient list.
+// #left-scroll-zone sits above the canvas on the left, so wheel events here
+// never reach OrbitControls (which lives on the canvas below).
+document.getElementById('left-scroll-zone').addEventListener('wheel', e => {
+  e.preventDefault(); // also stops page-level scroll
+  const inner = document.getElementById('speech-inner');
+  if (!inner) return;
+  const rootFs = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const avail  = window.innerHeight - 5 * rootFs;
+  const maxOff = Math.max(0, inner.offsetHeight - avail);
+  speechScrollOff = Math.max(0, Math.min(speechScrollOff + e.deltaY * 0.6, maxOff));
+  applyInnerTransform(inner);
+}, { passive: false });
+
+// Auto-randomize retro values on a random 3–10 s interval with smooth slide.
+// ~18% passthrough | ~16% color halftone | ~20% retro pixel | ~20% crystallize | ~26% blur
+function scheduleRetroRandomize() {
+  const delay = (Math.random() * 7 + 3) * 1000;
+  setTimeout(() => {
+    if (cardViewActive) { scheduleRetroRandomize(); return; }
+    const r = Math.random();
+    if (r < 0.18) {
+      // Passthrough: shader becomes identity
+      pixelTarget    = 1;   levelsTarget   = 255;
+      halftoneTarget = 0;   crystalTarget  = 0;   blurTarget = 0;
+    } else if (r < 0.34) {
+      // Color halftone
+      pixelTarget    = 1;   levelsTarget   = 255;
+      halftoneTarget = 1;   crystalTarget  = 0;   blurTarget = 0;
+      dotSizeTarget  = Math.floor(Math.random() * 12 + 4);
+    } else if (r < 0.54) {
+      // Retro pixel + quantization
+      pixelTarget    = Math.floor(Math.random() * 15 + 2);
+      levelsTarget   = Math.floor(Math.random() * 7  + 2);
+      halftoneTarget = 0;   crystalTarget  = 0;   blurTarget = 0;
+    } else if (r < 0.74) {
+      // Crystallize — auto-clears after 3 s max
+      pixelTarget    = 1;   levelsTarget   = Math.floor(Math.random() * 6 + 2);
+      halftoneTarget = 0;   crystalTarget  = 1;   blurTarget = 0;
+      crystalSizeTarget = Math.floor(Math.random() * 50 + 5);
+      clearTimeout(crystalTimeout);
+      crystalTimeout = setTimeout(() => { crystalTarget = 0; }, 3000);
+    } else {
+      // Gaussian blur — auto-clears after 3 s max, same pattern as crystallize
+      pixelTarget    = 1;   levelsTarget   = 255;
+      halftoneTarget = 0;   crystalTarget  = 0;
+      blurTarget = Math.floor(Math.random() * 14 + 4);
+      clearTimeout(blurTimeout);
+      blurTimeout = setTimeout(() => { blurTarget = 0; }, 3000);
+    }
+    scheduleRetroRandomize();
+  }, delay);
+}
+scheduleRetroRandomize();
+
+// ── Retro effects loop — always running (even before a model is loaded),
+// drives both the 3D model's shader (when present) and the homepage
+// placeholder text, so #retro-ctrl affects both "in the same form" ─────────
+function updateRetroEffects() {
+  // Lerp retro values toward their targets (~2 s transition at 60 fps)
+  pixelCur      += (pixelTarget      - pixelCur)      * 0.025;
+  levelsCur     += (levelsTarget     - levelsCur)     * 0.025;
+  halftoneCur   += (halftoneTarget   - halftoneCur)   * 0.025;
+  dotSizeCur    += (dotSizeTarget    - dotSizeCur)    * 0.025;
+  crystalCur    += (crystalTarget    - crystalCur)    * 0.18;
+  crystalSizeCur+= (crystalSizeTarget- crystalSizeCur)* 0.18;
+  blurCur       += (blurTarget       - blurCur)       * 0.07;
+  if (retroPass) {
+    retroPass.uniforms.pixelSize.value   = pixelCur;
+    retroPass.uniforms.levels.value      = levelsCur;
+    retroPass.uniforms.halftone.value    = halftoneCur;
+    retroPass.uniforms.dotSize.value     = dotSizeCur;
+    retroPass.uniforms.crystalize.value  = crystalCur;
+    retroPass.uniforms.crystalSize.value = Math.max(2, crystalSizeCur);
+    retroPass.uniforms.blurAmount.value  = blurCur;
+  }
+
+  // Mirror lerped values back to sliders so the thumb slides smoothly during auto-changes
+  if (!sliderDragging.has('r-pixel'))   document.getElementById('r-pixel').value   = Math.round(Math.max(2, pixelCur));
+  if (!sliderDragging.has('r-levels'))  document.getElementById('r-levels').value  = Math.round(Math.max(2, levelsCur));
+  if (!sliderDragging.has('r-dots'))    document.getElementById('r-dots').value    = Math.round(halftoneCur * dotSizeCur);
+  if (!sliderDragging.has('r-crystal')) document.getElementById('r-crystal').value = crystalCur < 0.05 ? 0 : Math.round(crystalSizeCur);
+  if (!sliderDragging.has('r-blur'))    document.getElementById('r-blur').value    = Math.round(Math.max(0, blurCur));
+
+  // Roll each thumb: accumulate rotation proportional to value delta (right=CW, left=CCW)
+  // Also drive rainbow color for auto-movement (not just user drag)
+  ['r-pixel', 'r-levels', 'r-dots', 'r-crystal', 'r-blur'].forEach(id => {
+    const el  = document.getElementById(id);
+    const cur = +el.value;
+    const delta = cur - sliderPrev[id];
+    sliderPrev[id] = cur;
+    sliderRot[id] += delta * sliderDeg[id];
+    el.style.setProperty('--thumb-rot', sliderRot[id].toFixed(1) + 'deg');
+
+    if (!sliderDragging.has(id)) {
+      // Check underlying float convergence, not integer delta (delta is 0 most lerp frames)
+      const isMoving = id === 'r-pixel'
+        ? Math.abs(pixelCur - pixelTarget) > 0.15
+        : id === 'r-levels'
+        ? Math.abs(levelsCur - levelsTarget) > 0.15
+        : id === 'r-dots'
+        ? Math.abs(halftoneCur - halftoneTarget) > 0.01 || Math.abs(dotSizeCur - dotSizeTarget) > 0.15
+        : id === 'r-crystal'
+        ? Math.abs(crystalCur - crystalTarget) > 0.01 || Math.abs(crystalSizeCur - crystalSizeTarget) > 0.15
+        : Math.abs(blurCur - blurTarget) > 0.15;
+      if (isMoving) {
+        sliderAutoMoving.add(id);
+        if (!rainbowRaf) rainbowRaf = requestAnimationFrame(rainbowLoop);
+      } else if (sliderAutoMoving.has(id)) {
+        sliderAutoMoving.delete(id);
+        el.style.removeProperty('--thumb-bg');
+        el.style.removeProperty('--thumb-glow');
+      }
+    }
+  });
+
+  applyPlaceholderRetro();
+}
+
+// Apply the same retro values to the homepage placeholder text via an SVG
+// filter (#retro-text-filter) plus a halftone-dot overlay — same lerped
+// state (pixelCur/halftoneCur/dotSizeCur/crystalCur/crystalSizeCur/blurCur)
+// that drives RetroShader's uniforms for the 3D model.
+function applyPlaceholderRetro() {
+  // pixel → blocky dilation
+  const dilateR = Math.max(0, (pixelCur - 2) * 0.16);
+  document.getElementById('ph-morph')?.setAttribute('radius', dilateR.toFixed(2));
+
+  // blur → direct Gaussian blur, same units as the shader's blurAmount
+  document.getElementById('ph-blur')?.setAttribute('stdDeviation', Math.max(0, blurCur).toFixed(2));
+
+  // crystal → turbulence-driven displacement (shatter/warp)
+  document.getElementById('ph-displace')?.setAttribute('scale', (crystalCur * 14).toFixed(1));
+  const freq = 1 / Math.max(4, crystalSizeCur * 4);
+  document.getElementById('ph-turb')?.setAttribute('baseFrequency', freq.toFixed(4));
+}
+
+(function retroLoop() {
+  updateRetroEffects();
+  requestAnimationFrame(retroLoop);
+})();
+
+// ── Pipeline ──────────────────────────────────────────────────────────────
+async function handleFile(file) {
+  if (!API_KEY) { showErr('Please enter your API key (reload the page).'); return; }
+  clearErr();
+  // Prime TTS engine while user gesture is still active (before async calls expire the gesture context)
+  if (window.speechSynthesis) {
+    const primer = new SpeechSynthesisUtterance('.');
+    primer.volume = 0.001;
+    primer.rate = 10;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(primer);
+  }
+  let dataUrl = await fileToDataUrl(file);
+  let mimeType = file.type;
+  if (file.size > 4 * 1024 * 1024) {
+    dataUrl = await compressImage(dataUrl);
+    mimeType = 'image/jpeg';
+  }
+  const b64 = dataUrl.split(',')[1];
+
+  showProgress(true);
+  hideResults();
+  faceFeatures = null;
+
+  try {
+    setStep(1, 'active');
+    const facePromise = loadOnePresetFeatures(
+      PRESET_FACES[Math.floor(Math.random() * PRESET_FACES.length)]
+    );
+    const [data, features] = await Promise.all([
+      analyzeFood(b64, mimeType),
+      facePromise.catch(e => { console.warn('face load failed:', e); return null; }),
+    ]);
+    faceFeatures = features;
+    setStep(1, 'done');
+
+    setStep(2, 'active');
+    const img = await loadImg(dataUrl);
+    await buildThreeScene(img, data);
+    setStep(2, 'done');
+
+    setStep(3, 'active');
+    setStep(3, 'done');
+
+    setStep(4, 'active');
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (speechTimer) { clearTimeout(speechTimer); speechTimer = null; }
+    speechList = data.speeches || [];
+    speechIdx = 0;
+    startSpeech();
+    setStep(4, 'done');
+
+    showProgress(false);
+    showResults(data);
+  } catch (err) {
+    showProgress(false);
+    showErr('Error: ' + err.message);
+    console.error(err);
+  }
+}
+
+function fileToDataUrl(file) {
+  return new Promise(res => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.readAsDataURL(file);
+  });
+}
+
+function compressImage(dataUrl) {
+  // Anthropic's 5 MB limit applies to the base64-encoded string length.
+  // Base64 is ~4/3 of raw size, so target raw ≤ 3.5 MB → base64 ≤ ~4.7 MB (safely under 5 MB).
+  const MAX_B64_CHARS = 3.5 * 1024 * 1024 * (4 / 3);
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onerror = () => rej(new Error('Could not load image for compression'));
+    img.onload = () => {
+      let W = img.naturalWidth, H = img.naturalHeight;
+      // Scale longest side to ≤ 1920 px first
+      const maxDim = 1920;
+      if (W > maxDim || H > maxDim) {
+        const s = maxDim / Math.max(W, H);
+        W = Math.round(W * s); H = Math.round(H * s);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      canvas.getContext('2d').drawImage(img, 0, 0, W, H);
+      let quality = 0.82, result;
+      do {
+        result = canvas.toDataURL('image/jpeg', quality);
+        // b64 payload length (after the data:…, prefix)
+        const b64Len = result.length - result.indexOf(',') - 1;
+        if (b64Len <= MAX_B64_CHARS || quality <= 0.20) break;
+        quality = Math.round((quality - 0.1) * 100) / 100;
+      } while (true);
+      res(result);
+    };
+    img.src = dataUrl;
+  });
+}
+
+function loadImg(src) {
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i); i.onerror = rej; i.src = src;
+  });
+}
+
+// ── Claude API ────────────────────────────────────────────────────────────
+async function claude(system, content) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-5',
+      max_tokens: 1600,
+      system,
+      messages: [{ role: 'user', content }]
+    })
+  });
+  if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
+  return (await r.json()).content[0].text;
+}
+
+async function analyzeFood(b64, mime) {
+  const sys = `You are a food recognition and nutrition expert.
+Respond ONLY with valid JSON (no markdown fences) matching this schema exactly:
+{
+  "name": "common food name",
+  "sharpness": 0-10,
+  "dominantMacro": "sugar|fat|protein|fiber",
+  "foodCategory": "vegetable|meat|carb|snack",
+  "colorProfile": "warm|cool|neutral",
+  "personality": "2-sentence character personality based on dominant macro and shape",
+  "faceX": 0.0-1.0,
+  "faceY": 0.0-1.0,
+  "faceScale": 0.0-1.0,
+  "nutrients": {
+    "sugar": number, "fat": number, "protein": number, "carbs": number,
+    "fiber": number, "potassium": number, "magnesium": number,
+    "calcium": number, "vitaminC": number
+  },
+  "speeches": [
+    {
+      "nutrient": "Nutrient Name",
+      "amount": "Xg",
+      "text": "First-person 1-2 sentences. Wrap nutrient name and amount in **bold**. Translate numbers into feelings or superpowers. Match the personality."
+    }
+  ],
+  "foodPolygon": [[0.1,0.2],[0.3,0.05],...]
+}
+faceX/faceY: normalized 0-1 (image coords, 0=top-left) of the face center on the food.
+faceScale: fraction of image width the face region spans.
+speeches: 5-7 items, one per key nutrient. Use casual personality-appropriate language.
+foodPolygon: 50-80 normalized [x,y] points tracing the complete outer silhouette clockwise.
+foodCategory: classify the food — "vegetable" if vegetables dominate, "meat" if meat/fish/poultry dominate, "carb" if starchy carbs (bread/rice/pasta/potato) dominate, "snack" if it is a processed sugar/fat snack (candy/chips/cake/pastry).
+Use standard per-serving nutritional values.`;
+
+  const raw = await claude(sys, [
+    { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+    { type: 'text', text: 'Analyze this food image.' }
+  ]);
+  return JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+}
+
+// ── Face feature extraction ───────────────────────────────────────────────
+async function extractFaceFeatures(img) {
+  const c = document.createElement('canvas');
+  const maxDim = 768;
+  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+  c.width  = Math.round(img.naturalWidth  * scale);
+  c.height = Math.round(img.naturalHeight * scale);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const b64 = c.toDataURL('image/jpeg', 0.88).split(',')[1];
+
+  const sys = `You are a face landmark detector.
+Respond ONLY with valid JSON (no markdown) matching this schema exactly:
+{"leftEye":{"x":0.0,"y":0.0,"w":0.0,"h":0.0},"rightEye":{"x":0.0,"y":0.0,"w":0.0,"h":0.0},"nose":{"x":0.0,"y":0.0,"w":0.0,"h":0.0},"mouth":{"x":0.0,"y":0.0,"w":0.0,"h":0.0}}
+x,y=top-left (0-1 normalized), w,h=width/height (0-1 normalized). Include ~25% padding.`;
+
+  const raw = await claude(sys, [
+    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+    { type: 'text', text: 'Return the facial feature bounding boxes for this portrait.' }
+  ]);
+  return JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+}
+
+function cropFaceFeatures(img, boxes) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const result = {};
+  for (const [name, box] of Object.entries(boxes)) {
+    const sx = Math.max(0, Math.round(box.x * W));
+    const sy = Math.max(0, Math.round(box.y * H));
+    const sw = Math.min(W - sx, Math.round(box.w * W));
+    const sh = Math.min(H - sy, Math.round(box.h * H));
+    if (sw < 4 || sh < 4) continue;
+    const c = document.createElement('canvas');
+    c.width = sw; c.height = sh;
+    c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    result[name] = c;
+  }
+  return result;
+}
+
+async function loadOnePresetFeatures(src) {
+  const img = await loadImg(src);
+  const cacheKey = 'cf_boxes_' + src;
+  const cached = localStorage.getItem(cacheKey);
+  let boxes;
+  if (cached) {
+    boxes = JSON.parse(cached);
+  } else {
+    boxes = await extractFaceFeatures(img);
+    try { localStorage.setItem(cacheKey, JSON.stringify(boxes)); } catch (_) {}
+  }
+  return cropFaceFeatures(img, boxes);
+}
+
+// ── Three.js init ─────────────────────────────────────────────────────────
+function initThree(mount) {
+  const W = mount.clientWidth, H = mount.clientHeight;
+
+  scene = new THREE.Scene();
+  // No scene.background — canvas is transparent so shader only touches the sphere
+
+  camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+  camera.position.set(0, 0, 3.5);
+
+  renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+  renderer.setClearColor(0x000000, 0);  // fully transparent clear
+  renderer.setPixelRatio(1);
+  renderer.setSize(W, H);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  mount.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.70));
+
+  // Lights are in world space but repositioned every frame from camera orientation,
+  // so they always shine from the screen's upper-right-front regardless of object rotation.
+  dirLight = new THREE.DirectionalLight(0xffffff, 3.0);
+  scene.add(dirLight); scene.add(dirLight.target);
+
+  fillLight = new THREE.DirectionalLight(0xffffff, 0.45);
+  scene.add(fillLight); scene.add(fillLight.target);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor = 0.06;
+  controls.enablePan = true;  controls.minDistance = 1.5; controls.maxDistance = 9;
+  controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.6;
+
+  // RGBA render target so transparency is preserved through post-processing
+  const rt = new THREE.WebGLRenderTarget(W, H, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat,
+  });
+  composer = new EffectComposer(renderer, rt);
+  composer.addPass(new RenderPass(scene, camera));
+  retroPass = new ShaderPass(RetroShader);
+  retroPass.uniforms.resolution.value.set(W, H);
+  composer.addPass(retroPass);
+
+  window.addEventListener('resize', onResize);
+}
+
+function onResize() {
+  const mount = document.getElementById('three-mount');
+  if (!mount.clientWidth || !renderer) return;
+  const W = mount.clientWidth, H = mount.clientHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  composer.setSize(W, H);
+  retroPass.uniforms.resolution.value.set(W, H);
+  const sc = document.getElementById('shadow-canvas');
+  sc.width = W; sc.height = H;
+}
+
+async function buildThreeScene(img, data) {
+  const mount = document.getElementById('three-mount');
+  mount.style.display = 'block';
+  if (!threeInited) { initThree(mount); threeInited = true; }
+  // Init shadow canvas (matches viewport size)
+  const sc = document.getElementById('shadow-canvas');
+  sc.width = mount.clientWidth; sc.height = mount.clientHeight;
+  sc.style.display = 'block';
+  shadowCtx2D = sc.getContext('2d');
+  buildMesh(img, mount, data);
+  currentFaceData = data;
+  document.getElementById('face-canvas').style.display = 'none';
+  document.getElementById('placeholder').style.display = 'none';
+  const hint = document.getElementById('hint-3d');
+  hint.classList.add('show');
+  setTimeout(() => hint.classList.remove('show'), 3500);
+  if (rafId) cancelAnimationFrame(rafId);
+  startAnimLoop();
+}
+
+// ── Catmull-Rom closed spline ─────────────────────────────────────────────
+function drawCatmullRom(ctx, pts, W, H) {
+  const n = pts.length;
+  if (n < 3) return;
+  const p = pts.map(([x, y]) => [x * W, y * H]);
+  ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+  for (let i = 0; i < n; i++) {
+    const p0 = p[(i-1+n)%n], p1 = p[i], p2 = p[(i+1)%n], p3 = p[(i+2)%n];
+    const cp1x = p1[0] + (p2[0]-p0[0])/6, cp1y = p1[1] + (p2[1]-p0[1])/6;
+    const cp2x = p2[0] - (p3[0]-p1[0])/6, cp2y = p2[1] - (p3[1]-p1[1])/6;
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2[0], p2[1]);
+  }
+  ctx.closePath();
+}
+
+function floodFillBackground(pixels, W, H, tolerance) {
+  const tol2 = tolerance * tolerance;
+  const visited = new Uint8Array(W * H);
+  const bgMask  = new Uint8Array(W * H);
+  const queue   = new Int32Array(W * H);
+  let head = 0, tail = 0;
+  function enqueue(i) { if (visited[i]) return; visited[i]=1; queue[tail++]=i; }
+  for (let x = 0; x < W; x++) { enqueue(x); enqueue((H-1)*W+x); }
+  for (let y = 1; y < H-1; y++) { enqueue(y*W); enqueue(y*W+W-1); }
+  while (head < tail) {
+    const i = queue[head++]; bgMask[i] = 1;
+    const x = i%W, y = (i/W)|0, pi = i*4;
+    const r = pixels[pi], g = pixels[pi+1], b = pixels[pi+2];
+    for (const ni of [x>0?i-1:-1, x<W-1?i+1:-1, y>0?i-W:-1, y<H-1?i+W:-1]) {
+      if (ni<0||visited[ni]) continue;
+      const npi = ni*4;
+      const dr=pixels[npi]-r, dg=pixels[npi+1]-g, db=pixels[npi+2]-b;
+      if (dr*dr+dg*dg+db*db<=tol2) enqueue(ni);
+    }
+  }
+  return bgMask;
+}
+
+function applyFoodMask(img, polygon) {
+  const W = img.naturalWidth||img.width, H = img.naturalHeight||img.height;
+  const MAX_DIM = 600;
+  const scale = Math.min(1, MAX_DIM/Math.max(W,H));
+  const sw = Math.round(W*scale), sh = Math.round(H*scale);
+  const samp = document.createElement('canvas');
+  samp.width=sw; samp.height=sh;
+  const sctx = samp.getContext('2d',{willReadFrequently:true});
+  sctx.drawImage(img,0,0,sw,sh);
+  const px = sctx.getImageData(0,0,sw,sh).data;
+  const bgMask = floodFillBackground(px,sw,sh,22);
+  const polyC = document.createElement('canvas');
+  polyC.width=sw; polyC.height=sh;
+  const pctx = polyC.getContext('2d',{willReadFrequently:true});
+  pctx.fillStyle='#000'; pctx.fillRect(0,0,sw,sh);
+  if (polygon&&polygon.length>=3) {
+    pctx.fillStyle='#fff'; drawCatmullRom(pctx,polygon,sw,sh); pctx.fill();
+  } else { pctx.fillStyle='#fff'; pctx.fillRect(0,0,sw,sh); }
+  const polyPx = pctx.getImageData(0,0,sw,sh).data;
+  const alphaC = document.createElement('canvas');
+  alphaC.width=sw; alphaC.height=sh;
+  const actx = alphaC.getContext('2d');
+  const aData = actx.createImageData(sw,sh);
+  for (let i=0;i<sw*sh;i++) {
+    const inPoly=polyPx[i*4]>128, isBg=bgMask[i]===1;
+    const a=(inPoly&&!isBg)?255:0;
+    aData.data[i*4]=255; aData.data[i*4+1]=255; aData.data[i*4+2]=255; aData.data[i*4+3]=a;
+  }
+  actx.putImageData(aData,0,0);
+  const feather = Math.max(4,Math.min(W,H)*0.010);
+  const blurC = document.createElement('canvas');
+  blurC.width=W; blurC.height=H;
+  const bctx = blurC.getContext('2d');
+  bctx.filter=`blur(${feather}px)`;
+  bctx.drawImage(alphaC,0,0,W,H);
+  const out = document.createElement('canvas');
+  out.width=W; out.height=H;
+  const octx = out.getContext('2d');
+  octx.drawImage(img,0,0,W,H);
+  octx.globalCompositeOperation='destination-in';
+  octx.drawImage(blurC,0,0);
+  return out;
+}
+
+function buildDispCanvas(img, polygon) {
+  const W=img.naturalWidth||img.width, H=img.naturalHeight||img.height;
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#050505'; ctx.fillRect(0,0,W,H);
+  if (polygon&&polygon.length>=3) {
+    ctx.save(); drawCatmullRom(ctx,polygon,W,H); ctx.clip();
+    ctx.drawImage(img,0,0,W,H); ctx.restore();
+  } else { ctx.drawImage(img,0,0,W,H); }
+  return c;
+}
+
+function buildFoodCharacter(foodCutout, features, data) {
+  const maxDim=1024;
+  const natW=foodCutout.width||foodCutout.naturalWidth;
+  const natH=foodCutout.height||foodCutout.naturalHeight;
+  const scale=Math.min(1,maxDim/Math.max(natW,natH));
+  const W=Math.round(natW*scale), H=Math.round(natH*scale);
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(foodCutout,0,0,W,H);
+  const poly=data?.foodPolygon;
+  let bx1=0.15,bx2=0.85,by1=0.15,by2=0.85;
+  if (poly&&poly.length>=3) {
+    const xs=poly.map(p=>p[0]),ys=poly.map(p=>p[1]);
+    bx1=Math.min(...xs); bx2=Math.max(...xs);
+    by1=Math.min(...ys); by2=Math.max(...ys);
+  }
+  const cx=((bx1+bx2)/2)*W, cy=((by1+by2)/2)*H;
+  const fw=(bx2-bx1)*W, fh=(by2-by1)*H;
+  drawCartoonLimbs(ctx,cx,cy,fw,fh,data);
+  if (features&&Object.keys(features).length) pasteFaceFeatures(ctx,features,data,W,H);
+  return c;
+}
+
+function drawCartoonLimbs(ctx,cx,cy,fw,fh,data) {
+  const palettes={
+    sugar:{fill:'#f9a87c',stroke:'#b84a1e'},fat:{fill:'#f5d98e',stroke:'#a07010'},
+    protein:{fill:'#f28080',stroke:'#9a1818'},fiber:{fill:'#7dce94',stroke:'#256e36'},
+  };
+  const pal=palettes[data?.dominantMacro]||palettes.sugar;
+  const lw=Math.max(2.5,fw*0.022);
+  ctx.save();
+  ctx.globalCompositeOperation='destination-over';
+  ctx.strokeStyle=pal.stroke; ctx.fillStyle=pal.fill;
+  ctx.lineWidth=lw; ctx.lineJoin='round'; ctx.lineCap='round';
+  const armLen=fw*0.36, handR=fw*0.115, legLen=fh*0.32;
+  const footRx=fw*0.145, footRy=fh*0.078, armY=cy-fh*0.05;
+  const lax=cx-fw*0.46, lhx=lax-armLen, lhy=armY+fw*0.055;
+  ctx.beginPath(); ctx.moveTo(lax,armY);
+  ctx.quadraticCurveTo(lax-armLen*0.48,armY+fw*0.04,lhx,lhy); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(lhx-handR*0.22,lhy,handR,handR*0.78,-0.25,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  for (let k=-1;k<=1;k++) { ctx.beginPath(); ctx.ellipse(lhx-handR*0.22-handR*0.70,lhy+k*handR*0.36,handR*0.22,handR*0.27,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  const rax=cx+fw*0.46, rhx=rax+armLen, rhy=armY+fw*0.055;
+  ctx.beginPath(); ctx.moveTo(rax,armY);
+  ctx.quadraticCurveTo(rax+armLen*0.48,armY+fw*0.04,rhx,rhy); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(rhx+handR*0.22,rhy,handR,handR*0.78,0.25,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  for (let k=-1;k<=1;k++) { ctx.beginPath(); ctx.ellipse(rhx+handR*0.22+handR*0.70,rhy+k*handR*0.36,handR*0.22,handR*0.27,0,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
+  const llx0=cx-fw*0.17, lly0=cy+fh*0.46, llx1=llx0-fw*0.06, lly1=lly0+legLen;
+  ctx.beginPath(); ctx.moveTo(llx0,lly0); ctx.quadraticCurveTo(llx0-fw*0.04,lly0+legLen*0.55,llx1,lly1); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(llx1-footRx*0.20,lly1+footRy*0.45,footRx,footRy,-0.14,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  const rlx0=cx+fw*0.17, rly0=cy+fh*0.46, rlx1=rlx0+fw*0.06, rly1=rly0+legLen;
+  ctx.beginPath(); ctx.moveTo(rlx0,rly0); ctx.quadraticCurveTo(rlx0+fw*0.04,rly0+legLen*0.55,rlx1,rly1); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(rlx1+footRx*0.20,rly1+footRy*0.45,footRx,footRy,0.14,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function pasteFaceFeatures(ctx,features,data,W,H) {
+  const fcx=(data?.faceX??0.5)*W, fcy=(data?.faceY??0.48)*H;
+  const faceW=(data?.faceScale??0.46)*Math.min(W,H), faceH=faceW*1.25;
+  const layout={
+    leftEye:{rx:-0.30,ry:-0.20,tw:0.40}, rightEye:{rx:0.30,ry:-0.20,tw:0.40},
+    nose:{rx:0.00,ry:0.06,tw:0.32},       mouth:{rx:0.00,ry:0.30,tw:0.58},
+  };
+  Object.entries(features).forEach(([name,fc])=>{
+    const info=layout[name]; if (!info) return;
+    const px=fcx+info.rx*faceW, py=fcy+info.ry*faceH;
+    const sf=(info.tw*faceW)/fc.width;
+    const fw=fc.width*sf, fh=fc.height*sf;
+    const jx=(Math.random()-0.5)*faceW*0.015, jy=(Math.random()-0.5)*faceW*0.015;
+    const angle=(Math.random()-0.5)*0.08;
+    const pad=12, tw2=Math.ceil(fw)+pad*2, th2=Math.ceil(fh)+pad*2;
+    const tmp=document.createElement('canvas'); tmp.width=tw2; tmp.height=th2;
+    const tctx=tmp.getContext('2d');
+    tctx.filter='contrast(1.35) saturate(1.25)';
+    tctx.drawImage(fc,pad,pad,fw,fh); tctx.filter='none';
+    const blurR=Math.max(2,Math.round(Math.min(fw,fh)*0.05));
+    const maskC=document.createElement('canvas'); maskC.width=tw2; maskC.height=th2;
+    const mctx=maskC.getContext('2d'); mctx.filter=`blur(${blurR}px)`;
+    mctx.beginPath(); mctx.ellipse(tw2/2,th2/2,fw*0.48,fh*0.48,0,0,Math.PI*2);
+    mctx.fillStyle='#000'; mctx.fill();
+    tctx.globalCompositeOperation='destination-in'; tctx.drawImage(maskC,0,0);
+    ctx.save(); ctx.translate(px+jx,py+jy); ctx.rotate(angle);
+    ctx.shadowColor='rgba(0,0,0,0.60)'; ctx.shadowBlur=faceW*0.06;
+    ctx.shadowOffsetX=faceW*0.018; ctx.shadowOffsetY=faceW*0.025;
+    ctx.drawImage(tmp,-tw2/2,-th2/2); ctx.shadowColor='transparent';
+    ctx.globalCompositeOperation='screen'; ctx.globalAlpha=0.18;
+    ctx.drawImage(tmp,-tw2/2-faceW*0.01,-th2/2-faceW*0.01);
+    ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.restore();
+  });
+}
+
+// ── Nutrient / shape helpers ──────────────────────────────────────────────
+function nlerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+
+// Base geometry driven by food category
+function buildBaseGeometry(cat) {
+  if (cat === 'vegetable') {
+    // Cylinder — organic, slightly tapered, random proportions
+    const h = 1.4 + Math.random() * 2.2;          // height 1.4 – 3.6
+    const r = 0.60 + Math.random() * 0.50;         // radius 0.6 – 1.1
+    return new THREE.CylinderGeometry(r * 0.80, r, h, 10, 8);
+  }
+  if (cat === 'meat') {
+    // Box — one axis stretched to suggest a cut of meat
+    const dims = [
+      1.3 + Math.random() * 1.6,   // long  1.3 – 2.9
+      0.65 + Math.random() * 0.70, // mid   0.65 – 1.35
+      0.65 + Math.random() * 0.70, // short 0.65 – 1.35
+    ].sort(() => Math.random() - 0.5); // shuffle which axis is long
+    return new THREE.BoxGeometry(dims[0], dims[1], dims[2], 6, 6, 6);
+  }
+  if (cat === 'snack') {
+    // Tetrahedron — crystalline / spiky snack
+    return new THREE.TetrahedronGeometry(1.7, 2);
+  }
+  // Default: carb → sphere
+  return new THREE.SphereGeometry(1.5, 20, 14);
+}
+
+// Grass blades (fiber) — placed on actual surface vertices of the model
+function buildGrass(fiberNorm, surfacePts) {
+  const count  = Math.round(nlerp(50, 300, fiberNorm));
+  const bladeH = nlerp(0.10, 0.55, fiberNorm);
+  const bladeW = nlerp(0.025, 0.055, fiberNorm);
+  const geo    = new THREE.PlaneGeometry(bladeW, bladeH);
+  geo.translate(0, bladeH / 2, 0);
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0.28, 0.68, 0.30),
+    side: THREE.DoubleSide, roughness: 0.95, flatShading: true,
+  });
+  const im = new THREE.InstancedMesh(geo, mat, count);
+  const d  = new THREE.Object3D();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < count; i++) {
+    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
+    const norm = sp.clone().normalize();
+    d.position.copy(norm).multiplyScalar(sp.length() + Math.random() * 0.05);
+    d.quaternion.setFromUnitVectors(up, norm);
+    d.rotateY(Math.random() * Math.PI * 2);
+    d.rotateX((Math.random() - 0.5) * 0.45);
+    d.updateMatrix();
+    im.setMatrixAt(i, d.matrix);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  scene.add(im); extraMeshes.push(im);
+}
+
+// Fat blobs — placed on actual surface vertices of the model
+function buildFatBlobs(fatNorm, surfacePts) {
+  const count = Math.round(nlerp(18, 90, fatNorm));
+  const blobR = nlerp(0.07, 0.22, fatNorm);
+  const geo   = new THREE.SphereGeometry(blobR, 5, 4);
+  const mat   = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0.93, 0.84, 0.50),
+    roughness: 0.22, metalness: 0.0, flatShading: true,
+  });
+  const im = new THREE.InstancedMesh(geo, mat, count);
+  const d  = new THREE.Object3D();
+  for (let i = 0; i < count; i++) {
+    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
+    const norm = sp.clone().normalize();
+    d.position.copy(norm).multiplyScalar(sp.length() + blobR * 0.55);
+    d.updateMatrix();
+    im.setMatrixAt(i, d.matrix);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  scene.add(im); extraMeshes.push(im);
+}
+
+// Build a 2-D six-pointed star Shape (outer tips + inner valleys alternating)
+function makeStarShape(outerR, innerR) {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    const x = Math.cos(angle) * r, y = Math.sin(angle) * r;
+    i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return shape;
+}
+
+// Vitamin stars: flat red six-pointed stars sitting on the surface
+function buildVitaminHexagons(vitaminNorm, surfacePts) {
+  const count = Math.round(nlerp(12, 100, vitaminNorm));
+  const r     = nlerp(0.06, 0.15, vitaminNorm);
+  const shape = makeStarShape(r, r * 0.38);
+  const geo   = new THREE.ExtrudeGeometry(shape, { depth: 0.025, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2); // ExtrudeGeometry extrudes along Z; rotate so flat face points +Y
+  const mat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color(0.88, 0.10, 0.12),
+    roughness: 0.50, metalness: 0.12, flatShading: true,
+  });
+  const im = new THREE.InstancedMesh(geo, mat, count);
+  const d  = new THREE.Object3D();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < count; i++) {
+    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
+    const norm = sp.clone().normalize();
+    d.position.copy(norm).multiplyScalar(sp.length() + 0.015);
+    d.quaternion.setFromUnitVectors(up, norm); // flat face points outward along surface normal
+    d.rotateY(Math.random() * Math.PI * 2);   // random spin
+    d.updateMatrix();
+    im.setMatrixAt(i, d.matrix);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  scene.add(im); extraMeshes.push(im);
+}
+
+// Build a flat ring (annulus) Shape — an outer circle with a smaller circular hole
+function makeRingShape(outerR, innerR) {
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, innerR, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+  return shape;
+}
+
+// Carb rings: flat hollow rings (donuts) with a little thickness, in varying
+// shades of blue, sitting on the surface
+function buildCarbRings(carbsNorm, surfacePts) {
+  const count  = Math.round(nlerp(8, 70, carbsNorm));
+  const outerR = nlerp(0.07, 0.17, carbsNorm);
+  const shape  = makeRingShape(outerR, outerR * 0.45);
+  const geo    = new THREE.ExtrudeGeometry(shape, { depth: 0.025, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2); // flat face points +Y, like the vitamin stars
+  // Dummy per-vertex color (all white) so USE_COLOR is a no-op multiply,
+  // letting per-instance colors (instanceColor) shine through unmodified.
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(1), 3));
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, vertexColors: true,
+    roughness: 0.40, metalness: 0.20, flatShading: true,
+  });
+  const im  = new THREE.InstancedMesh(geo, mat, count);
+  const d   = new THREE.Object3D();
+  const up  = new THREE.Vector3(0, 1, 0);
+  const col = new THREE.Color();
+  for (let i = 0; i < count; i++) {
+    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
+    const norm = sp.clone().normalize();
+    d.position.copy(norm).multiplyScalar(sp.length() + 0.015);
+    d.quaternion.setFromUnitVectors(up, norm); // flat face points outward along surface normal
+    d.rotateY(Math.random() * Math.PI * 2);   // random spin
+    d.updateMatrix();
+    im.setMatrixAt(i, d.matrix);
+
+    // Varying shades of blue — from pale sky-blue to deep navy
+    const t = Math.random();
+    col.setRGB(nlerp(0.55, 0.05, t), nlerp(0.75, 0.20, t), nlerp(1.00, 0.55, t));
+    im.setColorAt(i, col);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  im.instanceColor.needsUpdate  = true;
+  scene.add(im); extraMeshes.push(im);
+}
+
+// Build one merged double-helix geometry: two intertwined tube strands plus a
+// few connecting "rung" cylinders, rooted at y=0 and extending to y=height.
+function buildDoubleHelixGeometry(height, radius, turns, tubeR, rungCount) {
+  const N = 24;
+  const ptsA = [], ptsB = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const angle = t * turns * Math.PI * 2;
+    const y = t * height;
+    ptsA.push(new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius));
+    ptsB.push(new THREE.Vector3(Math.cos(angle + Math.PI) * radius, y, Math.sin(angle + Math.PI) * radius));
+  }
+  const tubeA = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ptsA), 32, tubeR, 5, false);
+  const tubeB = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ptsB), 32, tubeR, 5, false);
+
+  const rungs = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < rungCount; i++) {
+    const idx = Math.round((i / (rungCount - 1)) * N);
+    const a = ptsA[idx], b = ptsB[idx];
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const len = dir.length();
+    if (len < 1e-5) continue;
+    dir.normalize();
+    const mid  = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const quat = new THREE.Quaternion().setFromUnitVectors(up, dir);
+    const rung = new THREE.CylinderGeometry(tubeR * 0.8, tubeR * 0.8, len, 5);
+    rung.applyMatrix4(new THREE.Matrix4().compose(mid, quat, new THREE.Vector3(1, 1, 1)));
+    rungs.push(rung);
+  }
+  return mergeGeometries([tubeA, tubeB, ...rungs], false);
+}
+
+// Protein helices: small white double-helix structures standing on the surface
+function buildProteinHelices(proteinNorm, surfacePts) {
+  const count  = Math.round(nlerp(10, 80, proteinNorm));
+  const height = nlerp(0.18, 0.45, proteinNorm);
+  const geo    = buildDoubleHelixGeometry(height, height * 0.18, 2.5, height * 0.045, 5);
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.35, metalness: 0.05, flatShading: true,
+  });
+  const im = new THREE.InstancedMesh(geo, mat, count);
+  const d  = new THREE.Object3D();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let i = 0; i < count; i++) {
+    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
+    const norm = sp.clone().normalize();
+    d.position.copy(norm).multiplyScalar(sp.length() + 0.01);
+    d.quaternion.setFromUnitVectors(up, norm); // helix axis points outward along surface normal
+    d.rotateY(Math.random() * Math.PI * 2);   // random spin
+    d.updateMatrix();
+    im.setMatrixAt(i, d.matrix);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  scene.add(im); extraMeshes.push(im);
+}
+
+// Derive a tangent-space normal map from the uploaded photo's luminance so the
+// wrapped model picks up the texture/grain of the actual food surface as bumps,
+// instead of looking like a flat photo glued onto the shape.
+function buildNormalMapFromImage(img, strength = 2.4) {
+  const maxDim = 512;
+  const srcW = img.naturalWidth  || img.width  || 1;
+  const srcH = img.naturalHeight || img.height || 1;
+  const scale = Math.min(1, maxDim / Math.max(srcW, srcH));
+  const w = Math.max(1, Math.round(srcW * scale));
+  const h = Math.max(1, Math.round(srcH * scale));
+
+  const src  = document.createElement('canvas');
+  src.width = w; src.height = h;
+  const sctx = src.getContext('2d');
+  sctx.drawImage(img, 0, 0, w, h);
+  const { data: px } = sctx.getImageData(0, 0, w, h);
+
+  // Grayscale "height" buffer
+  const lum = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const o = i * 4;
+    lum[i] = (0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2]) / 255;
+  }
+  const at = (x, y) => lum[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))];
+
+  const out  = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  const dst  = octx.createImageData(w, h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // Sobel gradients of the luminance field → surface slope
+      const gx = (at(x+1,y-1) + 2*at(x+1,y) + at(x+1,y+1)) - (at(x-1,y-1) + 2*at(x-1,y) + at(x-1,y+1));
+      const gy = (at(x-1,y+1) + 2*at(x,y+1) + at(x+1,y+1)) - (at(x-1,y-1) + 2*at(x,y-1) + at(x+1,y-1));
+      let nx = -gx * strength, ny = -gy * strength, nz = 1.0;
+      const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
+      nx /= len; ny /= len; nz /= len;
+      const o = (y * w + x) * 4;
+      dst.data[o]     = Math.round((nx * 0.5 + 0.5) * 255);
+      dst.data[o + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+      dst.data[o + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+      dst.data[o + 3] = 255;
+    }
+  }
+  octx.putImageData(dst, 0, 0);
+
+  const tex = new THREE.CanvasTexture(out);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function buildMesh(img, mount, data) {
+  const panelW=mount.clientWidth, panelH=mount.clientHeight;
+  camera.position.set(0,0,4.5); camera.aspect=panelW/panelH;
+  camera.updateProjectionMatrix(); controls.target.set(0,0,0); controls.update();
+
+  // Remove previous extra meshes
+  extraMeshes.forEach(m => {
+    scene.remove(m); m.geometry.dispose();
+    Array.isArray(m.material) ? m.material.forEach(mt=>mt.dispose()) : m.material.dispose();
+  });
+  extraMeshes = [];
+
+  // Normalize key nutrients
+  const n         = data?.nutrients || {};
+  const sugarNorm   = Math.min(1, (n.sugar    || 0) / 40);
+  const fiberNorm   = Math.min(1, (n.fiber    || 0) / 12);
+  const fatNorm     = Math.min(1, (n.fat      || 0) / 30);
+  const vitaminNorm = Math.min(1, (n.vitaminC || 0) / 90); // 90 mg ≈ 100 % DV
+  const carbsNorm   = Math.min(1, (n.carbs    || 0) / 60);
+  const proteinNorm = Math.min(1, (n.protein  || 0) / 50); // 50 g ≈ 100 % DV
+
+  const tex=new THREE.Texture(img);
+  tex.needsUpdate=true; tex.colorSpace=THREE.SRGBColorSpace;
+
+  const normalTex = buildNormalMapFromImage(img);
+
+  // Base shape from food category; sugar drives spike intensity
+  const cat    = data?.foodCategory || 'carb';
+  const spikeP = nlerp(0.04, 0.45, sugarNorm);
+  const spkMax = nlerp(0.40, 2.20, sugarNorm);
+  const BUMP   = 0.22;
+
+  const geo = buildBaseGeometry(cat);
+  const pos = geo.attributes.position;
+  const dispMap = new Map();
+  for (let i = 0; i < pos.count; i++) {
+    const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+    const key=`${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
+    if (!dispMap.has(key)) {
+      const isSpike = Math.random() < spikeP;
+      dispMap.set(key, isSpike
+        ? (Math.random()*spkMax + 0.3) * (Math.random()<0.5?1:-1)
+        : (Math.random()-0.5)*BUMP);
+    }
+    const disp = dispMap.get(key);
+    const r = Math.sqrt(x*x+y*y+z*z);
+    if (r < 0.001) continue;
+    const s = (r+disp)/r;
+    pos.setXYZ(i, x*s, y*s, z*s);
+  }
+  pos.needsUpdate=true; geo.computeVertexNormals();
+
+  // Collect unique surface points for grass / blob placement
+  const surfacePts=[], seen=new Set();
+  for (let i=0; i<pos.count; i++) {
+    const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+    const key=`${Math.round(x*40)},${Math.round(y*40)},${Math.round(z*40)}`;
+    if (!seen.has(key)) { seen.add(key); surfacePts.push(new THREE.Vector3(x,y,z)); }
+  }
+
+  const mat=new THREE.MeshStandardMaterial({
+    map:tex, normalMap:normalTex, normalScale:new THREE.Vector2(0.85,0.85),
+    roughness:0.82, metalness:0.02, flatShading:true,
+  });
+  if (mesh) {
+    scene.remove(mesh); mesh.geometry.dispose();
+    mesh.material.map?.dispose(); mesh.material.normalMap?.dispose();
+    mesh.material.dispose();
+  }
+  mesh=new THREE.Mesh(geo,mat); scene.add(mesh);
+
+  if (fiberNorm   > 0.06) buildGrass(fiberNorm, surfacePts);
+  if (fatNorm     > 0.06) buildFatBlobs(fatNorm, surfacePts);
+  if (vitaminNorm > 0.06) buildVitaminHexagons(vitaminNorm, surfacePts);
+  if (carbsNorm   > 0.06) buildCarbRings(carbsNorm, surfacePts);
+  if (proteinNorm > 0.06) buildProteinHelices(proteinNorm, surfacePts);
+}
+
+// ── Shadow — drawn on a plain 2D canvas, never touched by the shader ──────
+function renderShadow2D() {
+  if (!shadowCtx2D || !camera) return;
+  const W = shadowCtx2D.canvas.width, H = shadowCtx2D.canvas.height;
+  shadowCtx2D.clearRect(0, 0, W, H);
+
+  // World-space ground point: below the sphere, offset left/back (opposite main light)
+  const gp = new THREE.Vector3(-0.40, -2.60, -0.20).project(camera);
+  const sx = (gp.x + 1) / 2 * W;
+  const sy = (-gp.y + 1) / 2 * H;
+  const rx = W * 0.13;   // semi-major axis
+  const ry = rx * 0.28;  // semi-minor axis (foreshortened ellipse)
+
+  shadowCtx2D.save();
+  shadowCtx2D.translate(sx, sy);
+  shadowCtx2D.scale(1, ry / rx);
+  const g = shadowCtx2D.createRadialGradient(0, 0, 0, 0, 0, rx);
+  g.addColorStop(0,   'rgba(0,0,0,0.34)');
+  g.addColorStop(0.45,'rgba(0,0,0,0.16)');
+  g.addColorStop(1,   'rgba(0,0,0,0)');
+  shadowCtx2D.beginPath();
+  shadowCtx2D.arc(0, 0, rx, 0, Math.PI * 2);
+  shadowCtx2D.fillStyle = g;
+  shadowCtx2D.fill();
+  shadowCtx2D.restore();
+}
+
+function startAnimLoop() {
+  // Pre-allocated vectors — reused every frame to avoid GC pressure
+  const _r = new THREE.Vector3(), _u = new THREE.Vector3(), _b = new THREE.Vector3();
+  const _msp = new THREE.Vector3(); // model screen position probe
+  const _rp  = new THREE.Vector3(); // radius edge probe for screen-space radius
+
+  function tick() {
+    controls.update();
+
+    // Reposition lights every frame so they always come from screen's upper-right-front.
+    // Derive camera's right / up / back-toward-viewer axes from its current quaternion.
+    if (dirLight && camera) {
+      _r.set(1, 0, 0).applyQuaternion(camera.quaternion);   // screen right
+      _u.set(0, 1, 0).applyQuaternion(camera.quaternion);   // screen up
+      _b.set(0, 0, 1).applyQuaternion(camera.quaternion);   // toward viewer
+
+      dirLight.position
+        .copy(camera.position)
+        .addScaledVector(_r,  2.0)
+        .addScaledVector(_u,  3.0)
+        .addScaledVector(_b,  1.5);  // upper-right-front
+
+      fillLight.position
+        .copy(camera.position)
+        .addScaledVector(_r, -1.5)
+        .addScaledVector(_u, -0.8)
+        .addScaledVector(_b,  1.5);  // lower-left fill
+    }
+
+    renderShadow2D();
+    composer.render();
+
+    // ── Adaptive text colour: sample the left-panel background every 10 frames ──
+    if (++bgFrameCount % 10 === 0) {
+      try {
+        // drawImage samples the text area (left:25px, top:80px, 380×380px)
+        _bgCtx.clearRect(0, 0, 8, 8);
+        _bgCtx.drawImage(renderer.domElement, 25, 80, 380, 380, 0, 0, 8, 8);
+        const d = _bgCtx.getImageData(0, 0, 8, 8).data;
+        let lum = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const a = d[i + 3] / 255;                   // alpha of WebGL pixel
+          const r = d[i]     * a + 255 * (1 - a);     // composite onto white background
+          const g = d[i + 1] * a + 255 * (1 - a);
+          const b = d[i + 2] * a + 255 * (1 - a);
+          lum += (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        }
+        lum /= d.length / 4;
+        textColorTarget = lum < 0.45 ? 1.0 : 0.0;    // dark bg → white text
+      } catch (_) { /* cross-origin guard */ }
+    }
+    textColorCur += (textColorTarget - textColorCur) * 0.02; // ~3 s slide
+    {
+      const inner = document.getElementById('speech-inner');
+      if (inner && inner.children.length > 0) {
+        const v  = Math.round(textColorCur * 255);               // body: 17→255
+        const lv = Math.round(102 + textColorCur * (255 - 102)); // label: #666→#fff
+        inner.style.setProperty('--txt-body',  `rgb(${v},${v},${v})`);
+        inner.style.setProperty('--txt-label', `rgb(${lv},${lv},${lv})`);
+      }
+    }
+
+    // ── Per-item squish & layout collision ───────────────────────────────────
+    if (!cardViewActive && mesh && camera && document.getElementById('speech-display')?.style.display !== 'none') {
+      _msp.setFromMatrixPosition(mesh.matrixWorld).project(camera);
+      const mSX = (_msp.x + 1) * 0.5 * window.innerWidth;
+      const mSY = (-_msp.y + 1) * 0.5 * window.innerHeight;
+      const W = window.innerWidth, H = window.innerHeight;
+
+      if (textLayout === 'left') {
+        // Compute mesh screen-space radius via bounding sphere projection
+        if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+        const bs = mesh.geometry.boundingSphere;
+        let screenRadius = 150;
+        if (bs) {
+          _rp.setFromMatrixPosition(mesh.matrixWorld);
+          _rp.x += bs.radius;
+          _rp.project(camera);
+          screenRadius = Math.abs(_rp.x - _msp.x) * 0.5 * W;
+        }
+
+        // Per-character squish: chars the model circle overlaps shrink AND pull
+        // toward the left, so each text row visibly compresses away from the
+        // model rather than each glyph just shrinking in place (leaving gaps).
+        // Accumulate per-row so later characters close the gap left by earlier ones.
+        let maxSquish = 0;
+        document.querySelectorAll('#speech-inner .speech-item-label, #speech-inner .speech-item-body').forEach(line => {
+          let cumShift = 0, rowTop = null;
+          line.querySelectorAll('.speech-char').forEach(ch => {
+            const r   = ch.getBoundingClientRect();
+            const cx  = r.left + r.width  / 2;
+            const cy  = r.top  + r.height / 2;
+            const dist = Math.sqrt((mSX - cx) ** 2 + (mSY - cy) ** 2);
+            const penetration = Math.max(0, screenRadius - dist);
+            const targetS = Math.min(1, penetration / 35);
+            const prev = parseFloat(ch.dataset.squish || '0');
+            // Slow build-up so the compression is clearly visible before the transfer fires
+            const next = prev + (targetS - prev) * 0.08;
+            ch.dataset.squish = next;
+
+            // Reset accumulated shift at each line wrap (row changes top offset)
+            const top = Math.round(r.top);
+            if (rowTop !== null && Math.abs(top - rowTop) > 2) cumShift = 0;
+            rowTop = top;
+
+            const sqX = next > 0.005 ? (1 - next * 0.65) : 1;
+            ch.style.setProperty('--sq-x',  sqX.toFixed(3));
+            ch.style.setProperty('--sq-tx', cumShift > 0.4 ? `-${cumShift.toFixed(1)}px` : '0px');
+            cumShift += r.width * (1 - sqX);
+
+            if (next > maxSquish) maxSquish = next;
+          });
+        });
+
+        // Only hand off to the scattered layout once the squeeze is pronounced
+        if (maxSquish > 0.7) switchToColumn(mSX, mSY, screenRadius, W);
+      } else if (textLayout === 'column') {
+        // Return to left when model is clearly right of the text zone
+        if (mSX > W * 0.52) switchToLeft();
+      }
+    }
+
+    rafId = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// ── Speech: each item gets its OWN element — fixes concurrent typewriter bug ──
+function startSpeech() {
+  if (!speechList.length) return;
+  document.getElementById('speech-display').style.display = 'block';
+  document.getElementById('left-scroll-zone').style.display = 'block';
+  nextSpeech();
+}
+
+function nextSpeech() {
+  const item = speechList[speechIdx];
+  const bodyEl = appendSpeechItem(item);
+
+  const plain = item.text.replace(/\*\*([^*]+)\*\*/g, '$1');
+  let fired = false;
+  const advance = () => {
+    if (fired) return;
+    fired = true;
+    speechIdx++;
+    if (speechIdx < speechList.length) speechTimer = setTimeout(nextSpeech, 600);
+  };
+
+  speakItem(plain, advance, bodyEl);
+  speechTimer = setTimeout(advance, 10000);
+}
+
+function speechScrollToBottom() {
+  const inner = document.getElementById('speech-inner');
+  if (!inner) return;
+  const avail = window.innerHeight - (5 * parseFloat(getComputedStyle(document.documentElement).fontSize));
+  const maxOff = Math.max(0, inner.offsetHeight - avail);
+  speechScrollOff = maxOff;
+  applyInnerTransform(inner);
+}
+
+// Each call creates its own DOM element — no shared state, no garbled text
+function appendSpeechItem(item) {
+  const container = document.getElementById('speech-inner');
+
+  // Outer wrap handles the fly-to-top/bottom layout transform
+  const outerWrap = document.createElement('div');
+  outerWrap.className = 'speech-item-wrap';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'speech-item';
+  wrapper.style.animationDelay = `-${(Math.random() * 4).toFixed(2)}s`;
+
+  const label = document.createElement('div');
+  label.className = 'speech-item-label';
+  // Split label into per-character floating spans
+  const labelText = item.nutrient + (item.amount ? ' — ' + item.amount : '');
+  for (const ch of labelText) {
+    if (ch === ' ') { label.appendChild(document.createTextNode(' ')); continue; }
+    const s = document.createElement('span');
+    s.className = 'speech-char';
+    s.style.setProperty('--cx', `${((Math.random()-.5)*.8).toFixed(1)}px`);
+    s.style.setProperty('--cy', `${(-(Math.random()*1.8+.3)).toFixed(1)}px`);
+    s.style.setProperty('--cd', `${(2+Math.random()*2).toFixed(2)}s`);
+    s.style.setProperty('--ca', `-${(Math.random()*4).toFixed(2)}s`);
+    s.textContent = ch;
+    label.appendChild(s);
+  }
+
+  const body = document.createElement('div');
+  body.className = 'speech-item-body';
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(body);
+  outerWrap.appendChild(wrapper);
+  container.appendChild(outerWrap);
+  speechScrollToBottom();
+
+  // Pre-create ALL body spans immediately (opacity:0) so boundary events can
+  // find them right away. Typewriter reveals them one-by-one via opacity.
+  const tokens = parseBold(item.text || '');
+  const revealQueue = [];
+  for (const tok of tokens) {
+    for (const ch of tok.text) {
+      if (ch === ' ') {
+        body.appendChild(document.createTextNode(' '));
+      } else {
+        const s = document.createElement('span');
+        s.className = 'speech-char';
+        if (tok.bold) s.style.fontWeight = '700';
+        s.style.setProperty('--cx', `${((Math.random()-.5)*1.2).toFixed(1)}px`);
+        s.style.setProperty('--cy', `${(-(Math.random()*3.5+.5)).toFixed(1)}px`);
+        s.style.setProperty('--cd', `${(2+Math.random()*2.5).toFixed(2)}s`);
+        s.style.setProperty('--ca', `-${(Math.random()*5).toFixed(2)}s`);
+        s.style.opacity = '0';
+        s.textContent = ch;
+        body.appendChild(s);
+        revealQueue.push(s);
+      }
+    }
+  }
+  let qi = 0;
+  function type() {
+    if (qi >= revealQueue.length) { speechScrollToBottom(); return; }
+    revealQueue[qi].style.opacity = '1';
+    qi++;
+    setTimeout(type, 26);
+  }
+  type();
+  return body;
+}
+
+// ── Shared transform helper: handles scroll offset on #speech-inner ─────────
+function applyInnerTransform(inner) {
+  inner.style.transform = speechScrollOff > 0 ? `translateY(-${speechScrollOff}px)` : '';
+}
+
+// Reset per-item squish on all wraps
+function clearItemSquish() {
+  document.querySelectorAll('#speech-inner .speech-item-wrap').forEach(w => {
+    w.style.transform = '';
+    w.style.transformOrigin = '';
+    delete w.dataset.squish;
+  });
+  document.querySelectorAll('#speech-inner .speech-char').forEach(ch => {
+    ch.style.removeProperty('--sq-x');
+    ch.style.removeProperty('--sq-tx');
+    delete ch.dataset.squish;
+  });
+}
+
+// ── Text layout: left column ↔ scattered column ───────────────────────────
+function findFreePosition(W, H, colW, itemH, mX, mY, mR, placed, rightPanelLeft, barTop) {
+  const L = 20, T = 80;
+  const B = barTop - 10;
+  const R = rightPanelLeft - colW - 10;
+  if (R <= L) return { x: L, y: T + placed.length * (itemH + 18) };
+  for (let i = 0; i < 60; i++) {
+    const x = L + Math.random() * Math.max(0, R - L);
+    const y = T + Math.random() * Math.max(0, B - T - itemH);
+    const cx = x + colW / 2, cy = y + itemH / 2;
+    if (mR > 0 && Math.sqrt((cx - mX) ** 2 + (cy - mY) ** 2) < mR + 70) continue;
+    let ok = true;
+    for (const p of placed) {
+      if (x < p.x + colW + 18 && x + colW + 18 > p.x &&
+          y < p.y + itemH + 18 && y + itemH + 18 > p.y) { ok = false; break; }
+    }
+    if (ok) return { x: Math.round(x), y: Math.round(y) };
+  }
+  return { x: Math.max(L, Math.min(R, L)), y: Math.min(B - itemH, T + placed.length * (itemH + 18)) };
+}
+
+function switchToColumn(modelScreenX, modelScreenY, modelScrRadius, screenW) {
+  if (textLayout === 'column') return;
+  textLayout = 'column';
+  clearItemSquish();
+
+  const wraps = Array.from(document.querySelectorAll('#speech-inner .speech-item-wrap'));
+  if (!wraps.length) return;
+
+  const W = screenW || window.innerWidth;
+  const H = window.innerHeight;
+  const rightPanel    = document.querySelector('.right');
+  const rightPanelLeft = rightPanel ? rightPanel.getBoundingClientRect().left : W - 210;
+  const retroBar      = document.getElementById('retro-ctrl');
+  const barTop        = retroBar ? retroBar.getBoundingClientRect().top : H - 100;
+
+  const colW  = 200;
+  const itemH = 30;
+
+  speechScrollOff = 0;
+  const inner = document.getElementById('speech-inner');
+  inner.style.transition = 'none';
+  inner.style.transform  = '';
+  document.getElementById('left-scroll-zone').style.display = 'none';
+
+  const placed = [];
+
+  wraps.forEach((wrap, wrapIdx) => {
+    const pos = findFreePosition(W, H, colW, itemH, modelScreenX, modelScreenY, modelScrRadius, placed, rightPanelLeft, barTop);
+    placed.push(pos);
+    const tx = pos.x, ty = pos.y;
+
+    const fontSize = 17 + Math.floor(Math.random() * 5); // 17–21 px
+
+    const chars   = Array.from(wrap.querySelectorAll('.speech-item-label .speech-char'));
+    const bodyEl  = wrap.querySelector('.speech-item-body');
+    const labelEl = wrap.querySelector('.speech-item-label');
+    const labelFullText = labelEl ? labelEl.textContent : '';
+
+    // Snapshot char positions before DOM mutations
+    const charRects = chars.map(c => { const r = c.getBoundingClientRect(); return { left: r.left, top: r.top }; });
+
+    // Fade body
+    if (bodyEl) { bodyEl.style.transition = 'opacity 0.15s'; bodyEl.style.opacity = '0'; }
+
+    // Pin each label char at its current screen spot, stop float anim
+    chars.forEach((ch, ci) => {
+      const r = charRects[ci];
+      ch.style.animation  = 'none';
+      ch.style.position   = 'fixed';
+      ch.style.left       = `${r.left}px`;
+      ch.style.top        = `${r.top}px`;
+      ch.style.zIndex     = '25';
+      ch.style.transition = 'none';
+    });
+
+    // Hide the wrap (chars are visible, flying independently)
+    wrap.classList.add('sp-compact');
+    const wrapRect = wrap.getBoundingClientRect();
+    Object.assign(wrap.style, {
+      position: 'fixed', left: `${wrapRect.left}px`, top: `${wrapRect.top}px`,
+      width: `${colW}px`, margin: '0', zIndex: '21',
+      opacity: '0', transition: 'none',
+    });
+
+    // Letter-by-letter flight to target position
+    requestAnimationFrame(() => {
+      chars.forEach((ch, ci) => {
+        const delay = (wrapIdx * 0.055 + ci * 0.026).toFixed(3);
+        const dur   = (0.38 + Math.random() * 0.14).toFixed(2);
+        const frac  = chars.length > 1 ? ci / (chars.length - 1) : 0.5;
+        const destX = tx + 5 + Math.round(frac * (colW - 14));
+        const destY = ty + 6;
+        ch.style.transition = `left ${dur}s ${delay}s cubic-bezier(.34,1.56,.64,1), top ${dur}s ${delay}s cubic-bezier(.25,.46,.45,.94)`;
+        ch.style.left = `${destX}px`;
+        ch.style.top  = `${destY}px`;
+      });
+
+      // After last char lands: restore, set font size, typewriter-glitch label
+      const snapMs = (wrapIdx * 0.055 + chars.length * 0.026 + 0.52) * 1000;
+      setTimeout(() => {
+        chars.forEach(ch => {
+          Object.assign(ch.style, { animation: '', position: '', left: '', top: '', zIndex: '', transition: '' });
+        });
+        if (bodyEl) Object.assign(bodyEl.style, { opacity: '', transition: '' });
+
+        // Store original label HTML for restoration when returning to left layout
+        if (labelEl && !wrap.dataset.origLabel) wrap.dataset.origLabel = labelEl.innerHTML;
+
+        Object.assign(wrap.style, {
+          left: `${tx}px`, top: `${ty}px`, width: `${colW}px`, opacity: '1', transition: 'none',
+        });
+
+        // Apply random font size + colorful float animation, then typewriter-glitch
+        if (labelEl) {
+          labelEl.style.fontSize = `${fontSize}px`;
+          labelEl.style.setProperty('--cc-d', `${(4 + Math.random() * 4).toFixed(2)}s`);
+          labelEl.style.setProperty('--cc-a', `-${(Math.random() * 8).toFixed(2)}s`);
+          labelEl.style.setProperty('--pf-d', `${(2.5 + Math.random() * 2).toFixed(2)}s`);
+          labelEl.style.setProperty('--pf-a', `-${(Math.random() * 5).toFixed(2)}s`);
+          labelEl.style.setProperty('--pf-h', `-${(3 + Math.random() * 5).toFixed(1)}px`);
+          labelEl.style.opacity  = '0';
+          const fullText = labelFullText;
+          setTimeout(() => {
+            labelEl.innerHTML = '';
+            labelEl.style.opacity = '1';
+            const glitchPool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&?@';
+            let idx = 0, glitchN = 0;
+            function typeGlitch() {
+              if (idx >= fullText.length) { labelEl.textContent = fullText; return; }
+              const ch = fullText[idx];
+              if (ch === ' ' || ch === '—') {
+                idx++;
+                labelEl.textContent = fullText.slice(0, idx);
+                setTimeout(typeGlitch, 38);
+              } else if (Math.random() < 0.35 && glitchN < 2) {
+                glitchN++;
+                labelEl.textContent = fullText.slice(0, idx) + glitchPool[Math.floor(Math.random() * glitchPool.length)];
+                setTimeout(typeGlitch, 55);
+              } else {
+                glitchN = 0;
+                idx++;
+                labelEl.textContent = fullText.slice(0, idx);
+                setTimeout(typeGlitch, 42 + Math.random() * 28);
+              }
+            }
+            typeGlitch();
+          }, 80);
+        }
+      }, snapMs);
+    });
+  });
+}
+
+function switchToLeft() {
+  if (textLayout === 'left') return;
+  textLayout = 'left';
+  clearItemSquish();
+  const wraps = Array.from(document.querySelectorAll('#speech-inner .speech-item-wrap'));
+  const sd = document.getElementById('speech-display');
+  const sdLeft = sd ? sd.getBoundingClientRect().left : 26;
+
+  wraps.forEach((wrap, i) => {
+    // Restore original label HTML (undoes typewriter replacement and font size)
+    const labelEl = wrap.querySelector('.speech-item-label');
+    if (labelEl) {
+      if (wrap.dataset.origLabel) {
+        labelEl.innerHTML = wrap.dataset.origLabel;
+        delete wrap.dataset.origLabel;
+      }
+      labelEl.style.fontSize = '';
+      labelEl.style.opacity  = '';
+    }
+
+    const delay = (Math.random() * 0.22).toFixed(2);
+    const dur   = (0.28 + Math.random() * 0.12).toFixed(2);
+    wrap.style.transition = `left ${dur}s ${delay}s ease-in, opacity ${dur}s ${delay}s ease-in`;
+    wrap.style.left    = `${sdLeft}px`;
+    wrap.style.opacity = '0';
+
+    const ms = (parseFloat(dur) + parseFloat(delay)) * 1000 + 60;
+    setTimeout(() => {
+      Object.assign(wrap.style, {
+        transition: 'none', position: '', left: '', top: '',
+        width: '', margin: '', opacity: '0', zIndex: '',
+      });
+      wrap.classList.remove('sp-compact');
+      requestAnimationFrame(() => {
+        wrap.style.transition = 'opacity 0.4s ease';
+        wrap.style.opacity    = '1';
+        setTimeout(() => { wrap.style.transition = ''; wrap.style.opacity = ''; }, 450);
+      });
+    }, ms);
+  });
+
+  const sdEl = document.getElementById('speech-display');
+  if (sdEl && sdEl.style.display !== 'none')
+    document.getElementById('left-scroll-zone').style.display = 'block';
+}
+
+function parseBold(text) {
+  const out = [], re = /\*\*([^*]+)\*\*/g;
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ text: text.slice(last, m.index), bold: false });
+    out.push({ text: m[1], bold: true });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last), bold: false });
+  return out;
+}
+
+function speakItem(text, onDone, bodyEl) {
+  if (!window.speechSynthesis) { if (onDone) onDone(); return; }
+  // Do NOT cancel here — cancel() was firing onerror on the previous utterance
+  // prematurely, causing the pipeline to race ahead before speak() was called.
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95; u.lang = 'en-US';
+  const voices = window.speechSynthesis.getVoices();
+  const voice = voices.find(v => v.lang === 'en-US' && v.localService)
+             || voices.find(v => v.lang === 'en-US')
+             || voices.find(v => v.lang.startsWith('en'))
+             || null;
+  if (voice) u.voice = voice;
+  talking = true;
+  const mi = setInterval(() => { mouthOpen = !mouthOpen; }, 115);
+  const resumeFix = setInterval(() => {
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+  }, 5000);
+
+  const clearReading = () => {
+    try {
+      if (bodyEl) bodyEl.querySelectorAll('.speech-char.reading').forEach(s => s.classList.remove('reading'));
+    } catch (_) {}
+  };
+  const cleanup = () => {
+    clearInterval(mi); clearInterval(resumeFix);
+    mouthOpen = false; talking = false;
+    clearReading();
+  };
+
+  try {
+    u.onboundary = (e) => {
+      if (e.name !== 'word' || !bodyEl) return;
+      clearReading();
+      const start = e.charIndex, end = start + (e.charLength || 1);
+      let idx = 0;
+      bodyEl.childNodes.forEach(node => {
+        if (node.nodeType === 3) {
+          idx += node.textContent.length;
+        } else if (node.classList && node.classList.contains('speech-char')) {
+          if (idx >= start && idx < end) node.classList.add('reading');
+          idx += node.textContent.length;
+        }
+      });
+    };
+  } catch (_) {}
+
+  u.onend = () => { cleanup(); if (onDone) onDone(); };
+  u.onerror = (e) => {
+    cleanup();
+    // 'canceled'/'interrupted' means something external stopped us (Start over, new upload).
+    // Do NOT advance — the external caller resets the pipeline itself.
+    // Only advance on real errors so the pipeline doesn't stall.
+    if (e.error !== 'canceled' && e.error !== 'interrupted') {
+      if (onDone) onDone();
+    }
+  };
+  window.speechSynthesis.speak(u);
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────
+let _spinnerStartTimer = null;
+
+function startLoadingSpinner() {
+  const container = document.getElementById('placeholder-text');
+  const all = Array.from(container.querySelectorAll('.ph-char, .ph-space'));
+  const N = all.length;
+  const R = 190; // base circle radius in px
+
+  // ── FLIP step 1: snapshot current positions in the inline horizontal layout ──
+  const origCenters = all.map(ch => {
+    const r = ch.getBoundingClientRect();
+    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+  });
+
+  // ── Pre-compute circle slots (jittered, stable for this session) ──
+  const slots = all.map((_, i) => ({
+    angle: (i / N) * 360 - 90 + (Math.random() - 0.5) * (360 / N) * 0.5,
+    r:     R + (Math.random() - 0.5) * 22,
+    tilt:  (Math.random() - 0.5) * 18,
+  }));
+
+  // ── FLIP step 2: switch layout (chars jump to container centre) ──
+  container.classList.add('ph-spinning');
+  // CSS keeps animation-play-state:paused during entry
+
+  // ── FLIP step 3: measure new positions (all at centre now) ──
+  const newCenters = all.map(ch => {
+    const r = ch.getBoundingClientRect();
+    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+  });
+
+  // ── FLIP step 4: instantly cancel the jump — each char appears where it was ──
+  all.forEach((ch, i) => {
+    const dx = (origCenters[i].cx - newCenters[i].cx).toFixed(1);
+    const dy = (origCenters[i].cy - newCenters[i].cy).toFixed(1);
+    ch.style.transition = 'none';
+    ch.style.transform  = `translate(${dx}px,${dy}px)`;
+  });
+
+  // ── FLIP step 5: stagger-release right → left to their circle slots ──
+  const STAGGER = 0.55;  // total spread across all chars (s)
+  const FLY_DUR = 0.70;  // per-char fly duration (s)
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    all.forEach((ch, i) => {
+      const { angle, r, tilt } = slots[i];
+      const finalT = `rotate(${angle.toFixed(2)}deg) translateY(-${r.toFixed(1)}px) rotate(${tilt.toFixed(1)}deg)`;
+      // rightmost char (i = N-1) → delay 0 s; leftmost (i = 0) → delay STAGGER s
+      const delay = (STAGGER * (N - 1 - i) / (N - 1)).toFixed(3);
+      ch.style.transition = `transform ${FLY_DUR}s cubic-bezier(0.34,1.38,0.64,1) ${delay}s`;
+      ch.style.transform  = finalT;
+    });
+
+    // Start the ring rotating after the last char lands
+    if (_spinnerStartTimer) clearTimeout(_spinnerStartTimer);
+    _spinnerStartTimer = setTimeout(() => {
+      container.style.animationPlayState = 'running';
+      _spinnerStartTimer = null;
+    }, (STAGGER + FLY_DUR + 0.12) * 1000);
+  }));
+}
+
+function stopLoadingSpinner() {
+  if (_spinnerStartTimer) { clearTimeout(_spinnerStartTimer); _spinnerStartTimer = null; }
+  const container = document.getElementById('placeholder-text');
+  if (!container.classList.contains('ph-spinning')) return;
+  container.style.animationPlayState = '';
+  container.querySelectorAll('.ph-char, .ph-space').forEach(ch => {
+    ch.style.transition = '';
+    ch.style.transform  = '';
+  });
+  container.classList.remove('ph-spinning');
+}
+
+function showProgress(on) {
+  document.getElementById('progress').style.display = on ? 'block' : 'none';
+  if (on) {
+    ['s1','s2','s3','s4'].forEach(id => document.getElementById(id).classList.remove('active','done'));
+    startLoadingSpinner();
+  } else {
+    stopLoadingSpinner();
+  }
+}
+function setStep(n, state) {
+  const el = document.getElementById('s' + n);
+  el.classList.remove('active','done');
+  if (state) el.classList.add(state);
+}
+function showResults(data) {
+  currentData = data;
+  document.getElementById('food-name').style.display  = 'block';
+  document.getElementById('food-name').textContent    = data.name || '';
+  document.getElementById('personality').style.display = 'block';
+  document.getElementById('personality').textContent  = data.personality || '';
+  document.getElementById('reset-btn').style.display  = 'block';
+  document.getElementById('card-btn').classList.add('cb-show');
+}
+function hideResults() {
+  currentData = null;
+  document.getElementById('card-btn').classList.remove('cb-show');
+  ['food-name','personality','reset-btn'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  const sd = document.getElementById('speech-display');
+  const inner = document.getElementById('speech-inner');
+  if (inner) { inner.innerHTML = ''; inner.style.transform = ''; }
+  sd.style.display = 'none';
+  document.getElementById('left-scroll-zone').style.display = 'none';
+  speechScrollOff = 0;
+  clearItemSquish();
+  textColorCur = textColorTarget = 0;
+  textLayout = 'left';
+}
+function showErr(msg) {
+  const e = document.getElementById('error');
+  e.textContent = msg; e.style.display = 'block';
+}
+function clearErr() { document.getElementById('error').style.display = 'none'; }
+
+// ── Placeholder floating text ─────────────────────────────────────────────
+// Nutrient fact shown when hovering (fleeing from) a placeholder letter —
+// keyed by the letter's lowercase first character, [name, role-in-the-body].
+const NUTRIENT_FACTS = {
+  a: ['Vitamin A',           'supports healthy vision, immune defense, and skin-cell renewal.'],
+  c: ['Vitamin C',           'an antioxidant that strengthens immunity and builds collagen for skin and joints.'],
+  d: ['Vitamin D',           'helps the body absorb calcium, keeping bones and teeth strong.'],
+  e: ['Vitamin E',           'an antioxidant that protects cell membranes from oxidative damage.'],
+  f: ['Folate (Vitamin B9)', 'essential for DNA synthesis and healthy cell division, especially during growth.'],
+  g: ['Glutamine',           'an amino acid that fuels the cells lining the gut and supports immune function.'],
+  h: ['Biotin (Vitamin H)',  'helps the body convert carbs, fats, and proteins into usable energy.'],
+  l: ['Lutein',              "a carotenoid that filters harmful light and protects the eye's retina."],
+  n: ['Niacin (Vitamin B3)', 'powers cellular energy production and supports a healthy nervous system.'],
+  o: ['Omega-3 Fatty Acids', 'support heart and brain health and help reduce inflammation.'],
+  p: ['Potassium',           'regulates fluid balance, nerve signals, and muscle contractions, including the heartbeat.'],
+  r: ['Riboflavin (Vitamin B2)', 'helps release energy from food and keeps skin and eyes healthy.'],
+  t: ['Thiamine (Vitamin B1)',   'helps convert nutrients into energy and supports nerve function.'],
+  u: ['Ubiquinone (CoQ10)',  'an antioxidant that powers cell mitochondria and supports heart health.'],
+};
+{
+  const text = 'upload a food photo to generate character card';
+  const container = document.getElementById('placeholder-text');
+  for (const ch of text) {
+    if (ch === ' ') {
+      const sp = document.createElement('span');
+      sp.className = 'ph-space';
+      container.appendChild(sp);
+    } else {
+      const s = document.createElement('span');
+      s.className = 'ph-char';
+      s.textContent = ch;
+      s.style.setProperty('--pf-d', `${(2.5 + Math.random() * 2.5).toFixed(2)}s`);
+      s.style.setProperty('--pf-a', `-${(Math.random() * 5).toFixed(2)}s`);
+      s.style.setProperty('--pf-h', `-${(3 + Math.random() * 6).toFixed(1)}px`);
+      s.style.setProperty('--pc-d', `${(3.5 + Math.random() * 3.5).toFixed(2)}s`);
+      s.style.setProperty('--pc-a', `-${(Math.random() * 7).toFixed(2)}s`);
+      container.appendChild(s);
+    }
+  }
+
+  document.addEventListener('mousemove', e => {
+    const ph = document.getElementById('placeholder');
+    if (!ph || ph.style.display === 'none') return;
+    let nearest = null, nearestDist = Infinity;
+    ph.querySelectorAll('.ph-char').forEach(ch => {
+      const r  = ch.getBoundingClientRect();
+      const cx = r.left + r.width  / 2;
+      const cy = r.top  + r.height / 2;
+      const dx = cx - e.clientX;
+      const dy = cy - e.clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const radius = 65;
+      if (dist < radius && dist > 0) {
+        const force = (radius - dist) / radius;
+        ch.style.setProperty('--flee-x', `${((dx / dist) * force * 45).toFixed(1)}px`);
+        ch.style.setProperty('--flee-y', `${((dy / dist) * force * 45).toFixed(1)}px`);
+        if (dist < nearestDist) { nearestDist = dist; nearest = ch; }
+      } else {
+        ch.style.setProperty('--flee-x', '0px');
+        ch.style.setProperty('--flee-y', '0px');
+      }
+    });
+
+    // Show a nutrient fact for the letter currently being fled from
+    const hint = document.getElementById('ph-nutrient-hint');
+    const fact = nearest && NUTRIENT_FACTS[nearest.textContent.toLowerCase()];
+    if (fact) {
+      hint.innerHTML = `<b>${fact[0]}</b> — ${fact[1]}`;
+      hint.classList.add('show');
+    } else {
+      hint.classList.remove('show');
+    }
+  });
+}
+
+// ── Food Card ─────────────────────────────────────────────────────────────
+
+const CARD_THEMES = {
+  vegetable: { bg:'linear-gradient(135deg,#265c38,#449957)', rgb:'38,92,56',  icon:'🌿', badge:'VEGGIE'  },
+  meat:      { bg:'linear-gradient(135deg,#7a2518,#b83e2a)', rgb:'122,37,24', icon:'🥩', badge:'PROTEIN' },
+  carb:      { bg:'linear-gradient(135deg,#826012,#c49030)', rgb:'130,96,18', icon:'🌾', badge:'CARB'    },
+  snack:     { bg:'linear-gradient(135deg,#4e2475,#8848b0)', rgb:'78,36,117', icon:'⭐', badge:'SNACK'   },
+};
+const CARD_DEFAULT = { bg:'linear-gradient(135deg,#243c7a,#4060b8)', rgb:'36,60,122', icon:'✨', badge:'FOOD' };
+
+const NUTRIENT_ICONS = {
+  sugar:'◆◆', fat:'◆◆', protein:'◆', carbs:'◆◆', carbohydrates:'◆◆',
+  fiber:'◆', potassium:'◆', magnesium:'◆', calcium:'◆', vitaminc:'◆',
+};
+const NUTRIENT_LABEL = {
+  protein:'Protein', fat:'Fat', carbs:'Carbohydrates', fiber:'Fiber',
+  sugar:'Sugar', sodium:'Sodium', vitaminC:'Vitamin C',
+  potassium:'Potassium', calcium:'Calcium', iron:'Iron', magnesium:'Magnesium',
+};
+const NUTRIENT_UNIT = {
+  protein:'g', fat:'g', carbs:'g', fiber:'g', sugar:'g',
+  sodium:'mg', vitaminC:'mg', potassium:'mg', calcium:'mg',
+  iron:'mg', magnesium:'mg',
+};
+const NUTRIENT_FACT = {
+  protein:   'Builds and repairs muscle; supports immune function and lasting satiety.',
+  fat:       'Provides essential fatty acids and helps absorb fat-soluble vitamins.',
+  carbs:     'Primary fuel for the brain and muscles during activity.',
+  fiber:     'Feeds good gut bacteria; stabilises blood sugar and cholesterol.',
+  sugar:     'Quick energy boost — keep intake in check to avoid blood sugar spikes.',
+  sodium:    'Regulates fluid balance — excess intake may raise blood pressure over time.',
+  vitaminC:  'Powerful antioxidant; essential for immunity and collagen synthesis.',
+  potassium: 'Supports heart rhythm and counteracts the effects of dietary sodium.',
+  calcium:   'Crucial for strong bones and teeth; aids nerve and muscle signalling.',
+  iron:      'Carries oxygen through the blood; vital for energy and immune defence.',
+  magnesium: 'Involved in 300+ enzyme reactions; supports muscle and nerve function.',
+};
+
+function cardCalories(n) {
+  n = n || {};
+  return Math.round((n.protein||0)*4 + (n.carbs||0)*4 + (n.fat||0)*9);
+}
+
+function cardTagline(data) {
+  const n = data.nutrients || {}, cat = data.foodCategory || '';
+  const cal = cardCalories(n);
+  const fat    = n.fat    || 0;
+  const sugar  = n.sugar  || 0;
+  const sodium = n.sodium || 0;
+  const protein= n.protein|| 0;
+  const fiber  = n.fiber  || 0;
+  const vitC   = n.vitaminC || 0;
+
+  // Count red flags
+  const highFat    = fat    > 20;
+  const veryhighFat= fat    > 30;
+  const highSugar  = sugar  > 18;
+  const highSodium = sodium > 800;
+  const highCal    = cal    > 500;
+
+  // Worst case: multiple red flags
+  if (veryhighFat && highSugar)
+    return 'Eat sparingly — the heavy fat and sugar combo strains your heart and metabolism over time.';
+  if (highFat && highSugar && highCal)
+    return "Don't overdo it — piled-up fat, sugar, and calories make this a treat, not a daily go-to.";
+
+  // Single red flags
+  if (veryhighFat)
+    return 'High in fat — great flavour, but limit portions to keep your cholesterol and arteries happy.';
+  if (highFat)
+    return 'Tasty, but the fat adds up quickly. Enjoy occasionally and pair with lighter meals.';
+  if (highSugar)
+    return 'Too much sugar can spike your blood glucose — savour it, but not every day.';
+  if (highSodium)
+    return 'Watch the salt — frequent intake at this sodium level can raise blood pressure over time.';
+  if (highCal && fat > 14)
+    return 'Energy-dense with notable fat. A little goes a long way — balance it with movement.';
+  if (highCal)
+    return 'Calorie-heavy but filling. Great fuel for demanding days, less ideal for a rest day.';
+
+  // Green flags — encourage
+  if (cat === 'vegetable' && fiber > 5)
+    return 'Eat as much as you like! Packed with fibre and micronutrients — your gut and immune system will thank you.';
+  if (cat === 'vegetable' && cal < 80)
+    return 'Virtually guilt-free — low calorie, high nutrient. A daily staple that keeps on giving.';
+  if (protein > 20 && fat < 12)
+    return 'Lean protein hero — eat it often to build muscle, control hunger, and sustain energy.';
+  if (protein > 15 && fat < 16)
+    return 'Good protein with reasonable fat. A solid choice to keep you full and fuelled.';
+  if (fiber > 6)
+    return 'Fibre-rich and gut-friendly — a regular helping supports digestion and steady blood sugar.';
+  if (vitC > 40)
+    return 'Vitamin C powerhouse — eat it regularly to strengthen immunity and skin health.';
+
+  // Neutral / balanced
+  if (fat < 10 && sugar < 10 && cal < 350)
+    return 'Well-balanced and light. A reliable everyday pick that fits comfortably into any healthy diet.';
+  return 'Nutritionally reasonable — enjoy as part of a varied, balanced diet.';
+}
+
+function cardHealthRule(data) {
+  const n = data.nutrients || {}, cal = cardCalories(n);
+  const p = [];
+  if (cal < 250) p.push('A light, low-calorie choice that fits any lifestyle.');
+  else if (cal < 450) p.push('A balanced energy source for active days.');
+  else p.push('A hearty, energy-dense food ideal for demanding days.');
+  if (n.protein > 15) p.push(`High protein (${n.protein}g) supports muscle repair.`);
+  else if (n.fiber > 4) p.push(`Rich in fiber (${n.fiber}g), promoting gut health.`);
+  else if (n.vitaminC > 20) p.push(`Vitamin C (${n.vitaminC}mg) boosts immunity.`);
+  else if (n.fat > 18) p.push('Contains notable fat — best enjoyed mindfully.');
+  return p.join(' ');
+}
+
+function enterCardView() {
+  if (!currentData || cardViewActive) return;
+  const data = currentData;
+  const theme = CARD_THEMES[data.foodCategory] || CARD_DEFAULT;
+
+  // -- Populate card fields --
+  document.getElementById('cc-badge').textContent = theme.badge;
+  const rawName = data.name || 'Unknown Food';
+  document.getElementById('cc-name').textContent  = rawName;
+  document.getElementById('cc-cal').textContent   = cardCalories(data.nutrients);
+  // Strip parenthetical comment if name overflows the header
+  setTimeout(() => {
+    const el = document.getElementById('cc-name');
+    if (!el) return;
+    const pi = rawName.indexOf('(');
+    if (pi > 0 && el.scrollWidth > el.clientWidth) {
+      el.textContent = rawName.slice(0, pi).trim();
+    }
+  }, 40);
+  document.getElementById('cc-tagline').textContent = cardTagline(data);
+
+  // Apply card color theme
+  const card = document.getElementById('food-card');
+  card.style.setProperty('--card-rgb', theme.rgb);
+  card.style.borderColor = `rgba(${theme.rgb}, .7)`;
+  document.getElementById('card-hdr').style.background = theme.bg;
+
+  // Reset user-picked element colors from any previous session
+  const ccName = document.getElementById('cc-name');
+  ccName.style.color = ''; ccName.style.animation = '';
+  document.getElementById('cc-badge').style.background = '';
+  document.getElementById('cc-cal').style.color = '';
+  document.querySelector('.card-cal-label').style.color = '';
+  document.querySelector('.cal-ring').style.borderColor = '';
+  document.querySelector('.cal-fill').style.background = '';
+  document.getElementById('card-model-area').style.background = '';
+
+  // Ability rows — top 2 nutrients by value
+  const abilEl = document.getElementById('cc-abilities');
+  abilEl.innerHTML = '';
+  const nutrObj = data.nutrients || {};
+  const topNutrients = Object.entries(nutrObj)
+    .filter(([k, v]) => v > 0 && NUTRIENT_LABEL[k])
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 2);
+  topNutrients.forEach(([key, val], i) => {
+    const iconKey = key.toLowerCase().replace(/\s+/g,'');
+    const icon    = NUTRIENT_ICONS[iconKey] || '◆';
+    const label   = NUTRIENT_LABEL[key] || key;
+    const unit    = NUTRIENT_UNIT[key] || '';
+    const amount  = `${val}${unit.toUpperCase()}`;
+    const fact    = NUTRIENT_FACT[key] || `Key nutrient found in this food.`;
+    const row = document.createElement('div');
+    row.className = 'card-attack';
+    row.innerHTML =
+      `<div class="card-atk-icons">${icon}${i === 0 ? icon : ''}</div>
+       <div class="card-atk-main">
+         <div class="card-atk-name cv-selectable" data-pick-prop="color">${label}</div>
+         <div class="card-atk-desc">${fact}</div>
+       </div>
+       <div class="card-atk-dmg cv-selectable" data-pick-prop="color">${amount}</div>`;
+    abilEl.appendChild(row);
+  });
+
+  // Rule + footer
+  document.getElementById('cc-rule').textContent = cardHealthRule(data);
+  const ftrEl = document.getElementById('cc-footer');
+  ftrEl.innerHTML = '';
+  const n = data.nutrients || {};
+  const weakNutrient  = n.sugar > 15 ? 'sugar' : n.fat > 20 ? 'fat' : 'sodium';
+  const resistNutrient = n.fiber > 3 ? 'fiber' : n.protein > 12 ? 'protein' : 'vit-c';
+  const retreatDots   = '●'.repeat(Math.min(3, Math.max(1, Math.round(cardCalories(n) / 200))));
+  const ftrItems = [
+    { abbr: weakNutrient,  label: 'weakness',   val: '×2'  },
+    { abbr: resistNutrient, label: 'resistance', val: '−30' },
+    { abbr: retreatDots,   label: 'retreat',     val: ''    },
+  ];
+  ftrItems.forEach((it, i) => {
+    const el = document.createElement('div'); el.className = 'card-ftr-item';
+    el.innerHTML = `<span class="fi">${it.abbr}</span>${it.label} ${it.val}`;
+    ftrEl.appendChild(el);
+    if (i < ftrItems.length - 1) {
+      const sep = document.createElement('div'); sep.className = 'card-ftr-sep'; ftrEl.appendChild(sep);
+    }
+  });
+  const copy = document.createElement('div'); copy.className = 'card-ftr-right';
+  copy.textContent = '©2025 CrazyFood'; ftrEl.appendChild(copy);
+
+  // Capture the current frame as the grayscale background BEFORE moving the canvas
+  if (renderer) {
+    const w = renderer.domElement.width, h = renderer.domElement.height;
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = w; offCanvas.height = h;
+    const ctx = offCanvas.getContext('2d');
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(renderer.domElement, 0, 0);
+    const snapUrl = offCanvas.toDataURL('image/jpeg', 0.78);
+    document.getElementById('card-view').style.setProperty('--bg-img', `url(${snapUrl})`);
+    // Fill transparent card sections with the model snapshot
+    const fc = document.getElementById('food-card');
+    fc.style.backgroundImage = `url(${snapUrl})`;
+    fc.style.backgroundSize  = 'cover';
+    fc.style.backgroundPosition = 'center 30%';
+  }
+
+  // Move #three-mount inside card model area
+  const mount = document.getElementById('three-mount');
+  const modelArea = document.getElementById('card-model-area');
+  if (mount.parentElement !== modelArea) modelArea.appendChild(mount);
+  // Hide shadow canvas (floor shadow looks wrong at card scale)
+  document.getElementById('shadow-canvas').style.display = 'none';
+  setTimeout(() => onResize(), 16);
+
+  // Slide existing panels out
+  document.getElementById('speech-display').classList.add('cv-out');
+  document.getElementById('left-scroll-zone').classList.add('cv-out');
+  document.querySelector('.right').classList.add('cv-out');
+
+  // Move retro ctrl into overlay (it's position:absolute so it appears bottom-center)
+  document.getElementById('card-view').appendChild(document.getElementById('retro-ctrl'));
+
+  // Disable model auto-rotation — in card view model only moves on drag
+  if (controls) controls.autoRotate = false;
+
+  // Reset and start the 3D card tilt RAF
+  cardEnterT = 0;
+  cardTiltTX = 0; cardTiltTY = 0; cardTiltCX = 0; cardTiltCY = 0;
+  if (cardRaf) cancelAnimationFrame(cardRaf);
+
+  // Show overlay
+  document.getElementById('card-view').classList.add('cv-active');
+  document.getElementById('card-btn').classList.remove('cb-show');
+  cardViewActive = true;
+  cardRaf = requestAnimationFrame(cardTiltLoop);
+}
+
+function exitCardView(instant) {
+  if (!cardViewActive) return;
+  deselectCardEl();
+  document.getElementById('card-view').classList.remove('cv-active');
+  cardViewActive = false;
+
+  const restore = () => {
+    const mount = document.getElementById('three-mount');
+    const charPanel = document.querySelector('.char-panel');
+    const fc = document.getElementById('face-canvas');
+    if (mount.parentElement !== charPanel) charPanel.insertBefore(mount, fc);
+    document.getElementById('shadow-canvas').style.display = currentData ? 'block' : 'none';
+    onResize();
+
+    // Re-enable model auto-rotation
+    if (controls) controls.autoRotate = true;
+    // Reset card transform so it's clean next time
+    const card = document.getElementById('food-card');
+    if (card) card.style.transform = '';
+
+    // Move retro ctrl back to char-panel
+    const ctrl = document.getElementById('retro-ctrl');
+    if (ctrl.parentElement !== charPanel) charPanel.appendChild(ctrl);
+
+    // Restore panels
+    document.getElementById('speech-display').classList.remove('cv-out');
+    document.getElementById('left-scroll-zone').classList.remove('cv-out');
+    document.querySelector('.right').classList.remove('cv-out');
+
+    document.getElementById('card-view').style.removeProperty('--bg-img');
+    const fcExit = document.getElementById('food-card');
+    fcExit.style.backgroundImage = '';
+    fcExit.style.backgroundSize  = '';
+    fcExit.style.backgroundPosition = '';
+    fcExit.style.borderColor = '';
+    if (currentData) document.getElementById('card-btn').classList.add('cb-show');
+  };
+
+  if (instant) restore();
+  else setTimeout(restore, 420);
+}
+
+document.getElementById('card-btn').addEventListener('click', enterCardView);
+document.getElementById('card-back-btn').addEventListener('click', () => {
+  if (libLiveMode) { libLiveExit(); return; }
+  exitCardView(false);
+});
+
+// ── Card 3D tilt RAF loop ─────────────────────────────────────────────────
+function cardTiltLoop() {
+  if (!cardViewActive) { cardRaf = null; return; }
+
+  // Lerp tilt toward target (smooth follow)
+  cardTiltCX += (cardTiltTX - cardTiltCX) * 0.07;
+  cardTiltCY += (cardTiltTY - cardTiltCY) * 0.07;
+
+  // Enter animation: ease-out-cubic over ~28 frames (0.47s @ 60fps)
+  cardEnterT = Math.min(1, cardEnterT + 1 / 28);
+  const ease  = 1 - Math.pow(1 - cardEnterT, 3);
+  const scale = 0.82 + ease * 0.18;   // 0.82 → 1.0
+  const ty    = 36 * (1 - ease);       // 36px → 0px
+
+  const card = document.getElementById('food-card');
+  if (card) {
+    const rx = cardTiltCX.toFixed(2), ry = cardTiltCY.toFixed(2);
+    card.style.transform = cardEnterT < 1
+      ? `scale(${scale.toFixed(3)}) translateY(${ty.toFixed(1)}px) rotateX(${rx}deg) rotateY(${ry}deg)`
+      : `rotateX(${rx}deg) rotateY(${ry}deg)`;
+
+    // Shift holographic shine with tilt
+    card.style.setProperty('--sx', (50 + cardTiltCY * 2.2).toFixed(1));
+    card.style.setProperty('--sy', (45 - cardTiltCX * 3.0).toFixed(1));
+  }
+
+  cardRaf = requestAnimationFrame(cardTiltLoop);
+}
+
+// Mouse events driving card tilt
+{
+  const cv = document.getElementById('card-view');
+  const fc = document.getElementById('food-card');
+  cv.addEventListener('mousemove', e => {
+    if (!cardViewActive) return;
+    // When hovering the model area the user rotates the model — don't tilt the card
+    if (e.target && e.target.closest && e.target.closest('#card-model-area')) {
+      cardTiltTX = 0; cardTiltTY = 0; return;
+    }
+    const r  = fc.getBoundingClientRect();
+    const dx = (e.clientX - r.left  - r.width  / 2) / (r.width  / 2); // -1 → 1
+    const dy = (e.clientY - r.top   - r.height / 2) / (r.height / 2); // -1 → 1
+    cardTiltTX = -dy * 7;   // ±7° around X (up/down)
+    cardTiltTY =  dx * 10;  // ±10° around Y (left/right)
+  });
+  cv.addEventListener('mouseleave', () => { cardTiltTX = 0; cardTiltTY = 0; });
+}
+
+// ── Color picker ─────────────────────────────────────────────────────────
+function rgbStrToHex(str) {
+  if (!str || str.startsWith('#')) return str || '#08080e';
+  const m = str.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+  return m ? '#' + [m[1],m[2],m[3]].map(n => (+n).toString(16).padStart(2,'0')).join('') : '#08080e';
+}
+
+function openModelBgPicker() {
+  const input = document.getElementById('cv-bg-input');
+  input.value = rgbStrToHex(document.getElementById('card-model-area').style.background);
+  input.click();
+}
+
+// Live-apply background via the old hidden input (kept for selectCardEl path)
+document.getElementById('cv-bg-input').addEventListener('input', e => {
+  document.getElementById('card-model-area').style.background = e.target.value;
+});
+
+// Live-apply model background from the inline picker
+document.getElementById('model-bg-color').addEventListener('input', e => {
+  document.getElementById('card-model-area').style.background = e.target.value;
+});
+
+function selectCardEl(el) {
+  if (selectedCardEl) selectedCardEl.classList.remove('cv-selected');
+  cvPickProp = el.dataset.pickProp || 'color';
+  // Model background uses its own dedicated picker panel — no crosshair mode
+  if (cvPickProp === 'model-bg') {
+    selectedCardEl = null; cvPickProp = '';
+    openModelBgPicker();
+    return;
+  }
+  selectedCardEl = el;
+  cvPickProp = el.dataset.pickProp || 'color';
+  el.classList.add('cv-selected');
+  document.getElementById('card-view').classList.add('cv-picking');
+  if (controls) controls.enabled = false;
+}
+
+function deselectCardEl() {
+  if (selectedCardEl) selectedCardEl.classList.remove('cv-selected');
+  selectedCardEl = null; cvPickProp = '';
+  document.getElementById('card-view').classList.remove('cv-picking');
+  document.getElementById('cv-cursor').style.display = 'none';
+  if (controls && cardViewActive) controls.enabled = true;
+}
+
+function sampleModelColor(clientX, clientY) {
+  const canvas = renderer && renderer.domElement;
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
+  const sx = Math.round((clientX - rect.left) * canvas.width / rect.width);
+  const sy = Math.round((clientY - rect.top)  * canvas.height / rect.height);
+  if (sx < 0 || sy < 0 || sx >= canvas.width || sy >= canvas.height) return null;
+  if (!cvPickCanvas) {
+    cvPickCanvas = document.createElement('canvas');
+    cvPickCanvas.width = 1; cvPickCanvas.height = 1;
+  }
+  const ctx = cvPickCanvas.getContext('2d');
+  ctx.drawImage(canvas, sx, sy, 1, 1, 0, 0, 1, 1);
+  const d = ctx.getImageData(0, 0, 1, 1).data;
+  return `rgb(${d[0]},${d[1]},${d[2]})`;
+}
+
+function applyCardColor(color) {
+  if (!selectedCardEl || !cvPickProp || !color) return;
+  if (cvPickProp === 'color') {
+    selectedCardEl.style.color = color;
+    if (selectedCardEl.id === 'cc-name') selectedCardEl.style.animation = 'none';
+  } else if (cvPickProp === 'cal-text') {
+    document.getElementById('cc-cal').style.color = color;
+    document.querySelector('.card-cal-label').style.color = color;
+  } else if (cvPickProp === 'cal-stroke') {
+    document.querySelector('.cal-ring').style.borderColor = color;
+  } else if (cvPickProp === 'border-color') {
+    document.getElementById('food-card').style.borderColor = color;
+  } else {
+    selectedCardEl.style.background = color;
+  }
+  deselectCardEl();
+}
+
+// Click on food-card: select element or deselect
+document.getElementById('food-card').addEventListener('click', e => {
+  if (!cardViewActive) return;
+  const target = e.target.closest('.cv-selectable');
+  // food-card itself (border-color) only selects when the click landed directly on it
+  // (i.e. on the border pixels), not when bubbled up from an inner child
+  if (target === document.getElementById('food-card') && e.target !== document.getElementById('food-card')) {
+    if (selectedCardEl) deselectCardEl();
+    return;
+  }
+  if (target) { e.stopPropagation(); selectCardEl(target); return; }
+  if (selectedCardEl) deselectCardEl();
+});
+
+// Model area: colour-picker cursor (for element-colour sampling) + bg picker
+{
+  const modelArea   = document.getElementById('card-model-area');
+  const cursor      = document.getElementById('cv-cursor');
+  const bgInput     = document.getElementById('model-bg-color');
+
+  // Returns true if the WebGL pixel at (clientX, clientY) belongs to 3D geometry
+  // (alpha > threshold), false if it is the transparent background.
+  function isOverModel(clientX, clientY) {
+    if (!renderer) return false;
+    const canvas = renderer.domElement;
+    const rect   = canvas.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right ||
+        clientY < rect.top  || clientY > rect.bottom) return false;
+    const px = Math.round((clientX - rect.left) * canvas.width  / rect.width);
+    const py = Math.round((clientY - rect.top)  * canvas.height / rect.height);
+    const gl = renderer.getContext();
+    const buf = new Uint8Array(4);
+    gl.readPixels(px, canvas.height - py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    return buf[3] > 20;   // alpha threshold: >20/255 = model geometry
+  }
+
+  // Capture-phase pointerdown: intercept BEFORE OrbitControls receives the event.
+  // If click is on the transparent background → open bg colour picker and block OrbitControls.
+  // If click is on the 3D model → let it pass through so OrbitControls can rotate/zoom.
+  modelArea.addEventListener('pointerdown', e => {
+    if (!cardViewActive || e.button !== 0) return;
+    if (selectedCardEl) return;   // colour-sampling mode — clicks go to the click handler below
+
+    if (!isOverModel(e.clientX, e.clientY)) {
+      // Background click: stop event before canvas / OrbitControls receive it
+      e.stopPropagation();
+      e.preventDefault();
+      bgInput.value = rgbStrToHex(
+        document.getElementById('card-model-area').style.background
+      ) || '#08080e';
+      try { bgInput.showPicker(); } catch (_) { bgInput.click(); }
+    }
+    // Model click: fall through — OrbitControls handles rotate/zoom normally
+  }, true); // ← capture phase so we intercept before canvas target phase
+
+  // Cursor overlay and colour sampling (when another card element is selected)
+  modelArea.addEventListener('mousemove', e => {
+    if (!selectedCardEl || !cardViewActive) return;
+    cursor.style.display = 'block';
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top  = e.clientY + 'px';
+    const c = sampleModelColor(e.clientX, e.clientY);
+    if (c) cursor.style.background = c;
+  });
+
+  modelArea.addEventListener('mouseleave', () => { cursor.style.display = 'none'; });
+
+  modelArea.addEventListener('click', e => {
+    if (!cardViewActive || !selectedCardEl) return;
+    e.stopPropagation();
+    applyCardColor(sampleModelColor(e.clientX, e.clientY));
+  });
+}
+
+// Click on card-view background (outside card) deselects
+document.getElementById('card-view').addEventListener('click', e => {
+  if (!cardViewActive || !selectedCardEl) return;
+  if (!e.target.closest('#food-card')) deselectCardEl();
+});
+
+// Escape key deselects
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && selectedCardEl) deselectCardEl();
+});
+
+// ── Font-size wheel adjustment (text elements only) ───────────────────────
+function cvFontLimits(el) {
+  if (el.id === 'cc-name')                         return { min: 12, max: 36 };
+  if (el.id === 'cc-cal')                           return { min: 12, max: 32 };
+  if (el.id === 'cc-badge')                         return { min: 10, max: 24 };
+  if (el.classList.contains('card-cal-label'))      return { min:  7, max: 18 };
+  if (el.classList.contains('card-atk-name'))       return { min:  8, max: 20 };
+  if (el.classList.contains('card-atk-dmg'))        return { min: 10, max: 28 };
+  return { min: 7, max: 30 };
+}
+
+document.getElementById('card-view').addEventListener('wheel', e => {
+  if (!cardViewActive || !selectedCardEl) return;
+  // Only resize text-color targets
+  if (cvPickProp !== 'color' && cvPickProp !== 'cal-text') return;
+  e.preventDefault();
+  const lim = cvFontLimits(selectedCardEl);
+  const cur = parseFloat(window.getComputedStyle(selectedCardEl).fontSize);
+  const next = Math.min(lim.max, Math.max(lim.min, cur + (e.deltaY < 0 ? 1 : -1)));
+  selectedCardEl.style.fontSize = next + 'px';
+}, { passive: false });
+
+// ── Card Library ─────────────────────────────────────────────────────────────
+const LIB_KEY = 'crazyfood_library';
+
+function libLoad() {
+  try { return JSON.parse(localStorage.getItem(LIB_KEY) || '[]'); }
+  catch { return []; }
+}
+function libSave(cards) {
+  localStorage.setItem(LIB_KEY, JSON.stringify(cards));
+}
+
+// Capture #food-card as a flat 2D image (no 3D tilt, no colour darkening)
+async function captureCardImage() {
+  const card         = document.getElementById('food-card');
+  const cv           = document.getElementById('card-view');
+  const modelArea    = document.getElementById('card-model-area');
+  const glCanvas     = renderer?.domElement;
+  const shadowCanvas = document.getElementById('shadow-canvas');
+
+  // 1. Pause tilt RAF
+  if (cardRaf) { cancelAnimationFrame(cardRaf); cardRaf = null; }
+
+  // 2. Flatten card (remove 3D perspective + tilt)
+  const prevPerspective = cv.style.perspective;
+  const prevPerspOrigin = cv.style.perspectiveOrigin;
+  const prevTransform   = card.style.transform;
+  const prevWillChange  = card.style.willChange;
+  cv.style.perspective       = 'none';
+  cv.style.perspectiveOrigin = '50% 50%';
+  card.style.transform       = 'none';
+  card.style.willChange      = 'auto';
+
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // Record model area position relative to card (flat, no 3D tilt)
+  const flatCardRect  = card.getBoundingClientRect();
+  const flatModelRect = modelArea.getBoundingClientRect();
+
+  // 3. Strip the card's own backgroundImage (full-scene JPEG from card-open)
+  const prevBgImg  = card.style.backgroundImage;
+  const prevBgSize = card.style.backgroundSize;
+  const prevBgPos  = card.style.backgroundPosition;
+  card.style.backgroundImage    = 'none';
+  card.style.backgroundSize     = '';
+  card.style.backgroundPosition = '';
+
+  // 4. Composite model area into a single 2D canvas in the correct stacking order:
+  //      bg colour → shadow canvas → WebGL food model → (vignette stays in DOM for html2canvas)
+  //
+  //    IMPORTANT: in the live view the shadow-canvas sits BELOW the WebGL canvas.
+  //    If we just hide the WebGL canvas and leave shadow-canvas visible, html2canvas
+  //    renders the shadow ON TOP of whatever backgroundImage we set, which darkens
+  //    the model.  We bake all three layers here so html2canvas only sees one opaque
+  //    <img> element and the ::after vignette.
+  let modelImg = null;
+  let resultCanvas;
+  try {
+    if (glCanvas && glCanvas.width > 0 && glCanvas.height > 0 && renderer && composer) {
+      // Render one clean frame with transparent background (matches live-view clearColor)
+      composer.render();
+
+      const W = glCanvas.width, H = glCanvas.height;
+      const offC = document.createElement('canvas');
+      offC.width = W; offC.height = H;
+      const ctx = offC.getContext('2d');
+
+      // Layer 1 – solid background colour
+      ctx.fillStyle = modelArea.style.background || '#08080e';
+      ctx.fillRect(0, 0, W, H);
+
+      // Layer 2 – shadow (2D canvas, transparent where no shadow)
+      if (shadowCanvas && shadowCanvas.style.display !== 'none'
+          && shadowCanvas.width > 0 && shadowCanvas.height > 0) {
+        ctx.drawImage(shadowCanvas, 0, 0, W, H);
+      }
+
+      // Layer 3 – WebGL food model (transparent bg; drawImage lets the browser apply
+      //            its colour-management pipeline so brightness matches the live view)
+      ctx.drawImage(glCanvas, 0, 0);
+
+      // Use <img> element — html2canvas handles <img> more reliably than backgroundImage
+      modelImg = document.createElement('img');
+      modelImg.src = offC.toDataURL('image/png');
+      modelImg.style.cssText =
+        'position:absolute;left:0;top:0;width:100%;height:100%;' +
+        'object-fit:fill;display:block;z-index:1;pointer-events:none;';
+      modelArea.appendChild(modelImg);
+    }
+
+    // 5. Hide WebGL canvas and shadow canvas — their content is baked into modelImg
+    if (glCanvas)     glCanvas.style.visibility     = 'hidden';
+    if (shadowCanvas) shadowCanvas.style.visibility = 'hidden';
+
+    // Wait for the img to load (data URL is synchronous but rAF flushes layout)
+    if (modelImg && !modelImg.complete) {
+      await new Promise(r => { modelImg.onload = r; modelImg.onerror = r; });
+    }
+    await new Promise(r => requestAnimationFrame(r));
+
+    // 6. Capture (html2canvas sees: card CSS + <img> model + ::after vignette; no WebGL)
+    resultCanvas = await html2canvas(card, {
+      allowTaint:      true,
+      useCORS:         false,
+      scale:           2,
+      logging:         false,
+      backgroundColor: null,
+      ignoreElements:  el => el.id === 'lib-add-btn' || el.id === 'card-back-btn',
+    });
+  } finally {
+    // 7. Always restore DOM state — runs even if html2canvas throws
+    if (modelImg && modelImg.parentElement === modelArea) modelArea.removeChild(modelImg);
+    if (glCanvas)     glCanvas.style.visibility     = '';
+    if (shadowCanvas) shadowCanvas.style.visibility = '';
+    card.style.backgroundImage    = prevBgImg;
+    card.style.backgroundSize     = prevBgSize;
+    card.style.backgroundPosition = prevBgPos;
+    cv.style.perspective       = prevPerspective;
+    cv.style.perspectiveOrigin = prevPerspOrigin;
+    card.style.transform       = prevTransform;
+    card.style.willChange      = prevWillChange;
+    if (cardViewActive && !cardRaf) cardRaf = requestAnimationFrame(cardTiltLoop);
+  }
+
+  // 8. Post-process: boost brightness + saturation, soften contrast on model area only.
+  //    The WebGL→html2canvas pipeline consistently captures the model darker than the
+  //    live view; this corrective step brings it back in line.
+  const SCALE = 2; // matches html2canvas scale option
+  const mx = Math.round((flatModelRect.left - flatCardRect.left) * SCALE);
+  const my = Math.round((flatModelRect.top  - flatCardRect.top)  * SCALE);
+  const mw = Math.round(flatModelRect.width  * SCALE);
+  const mh = Math.round(flatModelRect.height * SCALE);
+
+  const postCanvas = document.createElement('canvas');
+  postCanvas.width  = resultCanvas.width;
+  postCanvas.height = resultCanvas.height;
+  const postCtx = postCanvas.getContext('2d');
+
+  // Draw the full captured card first
+  postCtx.drawImage(resultCanvas, 0, 0);
+
+  // Extract model area, apply filter, paint back
+  const adjCanvas = document.createElement('canvas');
+  adjCanvas.width  = mw;
+  adjCanvas.height = mh;
+  const adjCtx = adjCanvas.getContext('2d');
+  adjCtx.filter = 'brightness(1.08) saturate(1.05) contrast(0.96)';
+  adjCtx.drawImage(resultCanvas, mx, my, mw, mh, 0, 0, mw, mh);
+  postCtx.drawImage(adjCanvas, mx, my);
+
+  return postCanvas.toDataURL('image/jpeg', 0.95);
+}
+
+// Fly the captured image from card position to dock, then add thumbnail
+function flyCardOut(imageDataUrl) {
+  const card = document.getElementById('food-card');
+  const rect = card.getBoundingClientRect();
+  const dock = document.getElementById('lib-dock');
+  const dockRect = dock.getBoundingClientRect();
+
+  const tw = 174, th = 243;
+  const tx = window.innerWidth - tw - 60;
+  const ty = window.innerHeight - th - 60;
+
+  const img = document.createElement('img');
+  img.src = imageDataUrl;
+  img.className = 'lib-fly-clone';
+  Object.assign(img.style, {
+    left: rect.left + 'px',
+    top:  rect.top  + 'px',
+    width:  rect.width  + 'px',
+    height: rect.height + 'px',
+  });
+  document.body.appendChild(img);
+
+  // Force layout before transition
+  void img.getBoundingClientRect();
+
+  requestAnimationFrame(() => {
+    Object.assign(img.style, {
+      left:   tx + 'px',
+      top:    ty + 'px',
+      width:  tw + 'px',
+      height: th + 'px',
+      borderRadius: '7px',
+      opacity: '0',
+    });
+  });
+
+  setTimeout(() => img.remove(), 640);
+}
+
+async function addCardToLibrary() {
+  const btn     = document.getElementById('lib-add-btn');
+  const backBtn = document.getElementById('card-back-btn');
+  btn.disabled     = true;
+  backBtn.disabled = true;
+
+  try {
+    const imageDataUrl = await captureCardImage();
+    const foodName = document.getElementById('cc-name').textContent;
+    const calories = document.getElementById('cc-cal').textContent;
+
+    const cards = libLoad();
+    cards.push({ id: Date.now(), timestamp: new Date().toISOString(), imageDataUrl, foodName, calories });
+    libSave(cards);
+
+    // Re-enable before exit so next card open finds buttons ready
+    btn.disabled     = false;
+    backBtn.disabled = false;
+
+    flyCardOut(imageDataUrl);
+    // Begin exiting card view at same time as fly
+    setTimeout(() => exitCardView(false), 60);
+    // Render dock after fly lands
+    setTimeout(() => libRenderDock(), 660);
+  } catch (err) {
+    console.error('Card capture failed:', err);
+    btn.disabled     = false;
+    backBtn.disabled = false;
+  }
+}
+
+function libRenderDock() {
+  const dock = document.getElementById('lib-dock');
+  dock.innerHTML = '';
+  const cards = libLoad();
+  if (!cards.length) return;
+
+  const top    = cards[cards.length - 1];
+  const behind = cards.length > 1 ? cards[cards.length - 2] : null;
+
+  // Behind card first (lower z-index, tilted)
+  if (behind) {
+    const wrap = document.createElement('div');
+    wrap.className = 'lib-thumb-wrap lib-thumb-behind';
+    const img = document.createElement('img');
+    img.className = 'lib-thumb';
+    img.src = behind.imageDataUrl;
+    img.alt = behind.foodName;
+    img.draggable = false;
+    wrap.appendChild(img);
+    wrap.addEventListener('click', libOpen);
+    dock.appendChild(wrap);
+  }
+
+  // Top card (straight, on top)
+  const wrapTop = document.createElement('div');
+  wrapTop.className = 'lib-thumb-wrap lib-thumb-top';
+  const imgTop = document.createElement('img');
+  imgTop.className = 'lib-thumb';
+  imgTop.src = top.imageDataUrl;
+  imgTop.alt = top.foodName;
+  imgTop.draggable = false;
+  wrapTop.appendChild(imgTop);
+
+  // Count badge shows total when more than 1 card
+  if (cards.length > 1) {
+    const badge = document.createElement('span');
+    badge.className = 'lib-thumb-count';
+    badge.textContent = cards.length;
+    wrapTop.appendChild(badge);
+  }
+
+  wrapTop.addEventListener('click', libOpen);
+  dock.appendChild(wrapTop);
+}
+
+function libOpen() {
+  const overlay = document.getElementById('lib-overlay');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('lib-open'));
+  document.querySelector('.app').classList.add('lib-bw');
+  libRenderGrid();
+}
+
+function libClose() {
+  const overlay = document.getElementById('lib-overlay');
+  overlay.classList.remove('lib-open');
+  document.querySelector('.app').classList.remove('lib-bw');
+  setTimeout(() => { overlay.style.display = 'none'; }, 320);
+}
+
+// ── Long-press delete menu ────────────────────────────────────────────────────
+let libMenuTargetId = null;
+const LONG_PRESS_MS = 550;
+
+function libShowMenu(cardId, anchorEl) {
+  libMenuTargetId = cardId;
+  const menu = document.getElementById('lib-delete-menu');
+  const r = anchorEl.getBoundingClientRect();
+  // Position menu centred above the card, clamped to viewport
+  let left = r.left + r.width / 2 - 90;
+  let top  = r.top - 54;
+  left = Math.max(8, Math.min(left, window.innerWidth  - 188));
+  top  = Math.max(8, Math.min(top,  window.innerHeight - 60));
+  menu.style.left = left + 'px';
+  menu.style.top  = top  + 'px';
+  menu.classList.add('lib-menu-open');
+}
+
+function libHideMenu() {
+  document.getElementById('lib-delete-menu').classList.remove('lib-menu-open');
+  // Remove highlight from all items
+  document.querySelectorAll('.lib-card-item.lib-long-pressed')
+    .forEach(el => el.classList.remove('lib-long-pressed'));
+  libMenuTargetId = null;
+}
+
+document.getElementById('lib-delete-btn').addEventListener('click', () => {
+  if (!libMenuTargetId) return;
+  const cards = libLoad().filter(c => c.id !== libMenuTargetId);
+  libSave(cards);
+  libHideMenu();
+  libRenderGrid();
+  libRenderDock();
+});
+
+// Close menu when clicking outside
+document.addEventListener('pointerdown', e => {
+  const menu = document.getElementById('lib-delete-menu');
+  if (!menu.classList.contains('lib-menu-open')) return;
+  if (!menu.contains(e.target)) libHideMenu();
+}, true);
+
+function libAttachLongPress(item, card) {
+  let pressTimer = null;
+  let didLongPress = false;
+  let startX = 0, startY = 0;
+
+  const cancel = () => {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+    item.classList.remove('lib-long-pressed');
+  };
+
+  const onDown = e => {
+    didLongPress = false;
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    pressTimer = setTimeout(() => {
+      didLongPress = true;
+      item.classList.add('lib-long-pressed');
+      if (navigator.vibrate) navigator.vibrate(30);
+      libShowMenu(card.id, item);
+    }, LONG_PRESS_MS);
+  };
+
+  const onMove = e => {
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX);
+    const cy = (e.touches ? e.touches[0].clientY : e.clientY);
+    if (Math.abs(cx - startX) > 8 || Math.abs(cy - startY) > 8) cancel();
+  };
+
+  const onUp = e => {
+    cancel();
+    // If long press fired, suppress the click so card doesn't zoom open
+    if (didLongPress) {
+      didLongPress = false;
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+
+  item.addEventListener('mousedown',  onDown);
+  item.addEventListener('touchstart', onDown, { passive: true });
+  item.addEventListener('mousemove',  onMove);
+  item.addEventListener('touchmove',  onMove, { passive: true });
+  item.addEventListener('mouseup',    onUp);
+  item.addEventListener('touchend',   onUp);
+  item.addEventListener('mouseleave', cancel);
+  item.addEventListener('contextmenu', e => e.preventDefault()); // suppress browser ctx menu on long press
+}
+
+function libRenderGrid() {
+  const grid = document.getElementById('lib-grid');
+  grid.innerHTML = '';
+  libHideMenu();
+  const cards = libLoad();
+
+  if (!cards.length) {
+    const empty = document.createElement('div');
+    empty.id = 'lib-empty';
+    empty.textContent = 'No cards saved yet.';
+    grid.appendChild(empty);
+    return;
+  }
+
+  cards.forEach(card => {
+    const item = document.createElement('div');
+    item.className = 'lib-card-item';
+
+    const img = document.createElement('img');
+    img.src = card.imageDataUrl;
+    img.alt = card.foodName;
+    img.draggable = false;
+
+    item.appendChild(img);
+    item.addEventListener('click', () => {
+      if (document.getElementById('lib-delete-menu').classList.contains('lib-menu-open')) {
+        libHideMenu(); return;
+      }
+      libZoomOpen(card);
+    });
+    libAttachLongPress(item, card);
+    grid.appendChild(item);
+  });
+}
+
+// ── Library live-3D mode ────────────────────────────────────────────────────
+let libLiveMode = false;
+
+let _libLiveHideTimer = null;
+
+function libLiveEnter() {
+  libLiveMode = true;
+  if (_libLiveHideTimer) { clearTimeout(_libLiveHideTimer); _libLiveHideTimer = null; }
+  // Fade out then hide library overlay
+  const libOverlay = document.getElementById('lib-overlay');
+  libOverlay.classList.remove('lib-open');
+  _libLiveHideTimer = setTimeout(() => { libOverlay.style.display = 'none'; _libLiveHideTimer = null; }, 320);
+  // Restore full colour on main app
+  document.querySelector('.app').classList.remove('lib-bw');
+  // Show live bar
+  document.getElementById('lib-live-bar').classList.add('active');
+}
+
+function libLiveExit() {
+  libLiveMode = false;
+  document.getElementById('lib-live-bar').classList.remove('active');
+  libOpen();  // reopen library
+}
+
+document.getElementById('lib-live-back-btn').addEventListener('click', libLiveExit);
+
+// ── Zoom / static view ──────────────────────────────────────────────────────
+function libZoomOpen(card) {
+  // If a live 3D model is currently loaded, surface the interactive card view
+  if (cardViewActive && mesh) {
+    libLiveEnter();
+    return;
+  }
+
+  // Fallback: show static JPEG in zoom overlay
+  const overlay = document.getElementById('lib-zoom-overlay');
+  document.getElementById('lib-zoom-img').src = card.imageDataUrl;
+
+  // Wire download button for this card
+  const dlBtn = document.getElementById('lib-download-btn');
+  dlBtn.onclick = e => {
+    e.stopPropagation();
+    const tmpImg = new Image();
+    tmpImg.onload = () => {
+      const cv = document.createElement('canvas');
+      cv.width = tmpImg.naturalWidth;
+      cv.height = tmpImg.naturalHeight;
+      cv.getContext('2d').drawImage(tmpImg, 0, 0);
+      const a = document.createElement('a');
+      a.href = cv.toDataURL('image/png');
+      a.download = (card.foodName || 'card').replace(/\s+/g, '_') + '.png';
+      a.click();
+    };
+    tmpImg.src = card.imageDataUrl;
+  };
+
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('lib-open'));
+}
+
+function libZoomClose() {
+  const overlay = document.getElementById('lib-zoom-overlay');
+  overlay.classList.remove('lib-open');
+  setTimeout(() => { overlay.style.display = 'none'; }, 240);
+}
+
+// Wire up events
+document.getElementById('lib-add-btn').addEventListener('click', addCardToLibrary);
+document.getElementById('lib-close-btn').addEventListener('click', libClose);
+document.getElementById('lib-zoom-overlay').addEventListener('click', e => {
+  if (!e.target.closest('#lib-zoom-inner')) libZoomClose();
+});
+
+// Escape closes zoom → live mode → library
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('lib-zoom-overlay').classList.contains('lib-open')) {
+    libZoomClose();
+  } else if (libLiveMode) {
+    libLiveExit();
+  } else if (document.getElementById('lib-overlay').classList.contains('lib-open')) {
+    libClose();
+  }
+});
+
+// Restore dock on page load
+libRenderDock();
+
+function resetAll() {
+  if (cardViewActive) exitCardView(true);
+  if (rafId)       { cancelAnimationFrame(rafId); rafId = null; }
+  if (speechTimer)   { clearTimeout(speechTimer);   speechTimer   = null; }
+  if (crystalTimeout){ clearTimeout(crystalTimeout); crystalTimeout = null; }
+  if (blurTimeout)   { clearTimeout(blurTimeout);    blurTimeout    = null; }
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  speechList = []; speechIdx = 0; talking = false; mouthOpen = false;
+  currentFaceData = null; faceFeatures = null;
+  extraMeshes.forEach(m => {
+    if (scene) scene.remove(m);
+    m.geometry.dispose();
+    Array.isArray(m.material) ? m.material.forEach(mt=>mt.dispose()) : m.material.dispose();
+  });
+  extraMeshes = [];
+  document.getElementById('three-mount').style.display = 'none';
+  stopLoadingSpinner();
+  document.getElementById('placeholder').style.display = 'flex';
+  const sc = document.getElementById('shadow-canvas');
+  sc.style.display = 'none';
+  if (shadowCtx2D) { shadowCtx2D.clearRect(0, 0, sc.width, sc.height); shadowCtx2D = null; }
+  document.getElementById('file-input').value = '';
+  clearErr(); hideResults();
+}
+</script>
+</body>
+</html>
