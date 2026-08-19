@@ -1183,8 +1183,8 @@ import { ShaderPass }     from 'three/addons/postprocessing/ShaderPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const PRESET_FACES = [
-  'faces/1.jpg','faces/2.jpg','faces/3.jpg','faces/4.jpg',
-  'faces/5.jpg','faces/6.jpg','faces/7.jpg',
+  'faces/1.png','faces/2.png','faces/3.png','faces/4.png',
+  'faces/5.png','faces/6.png',
 ];
 
 if (window.speechSynthesis) {
@@ -1193,7 +1193,12 @@ if (window.speechSynthesis) {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────
-let API_KEY = localStorage.getItem('cf_key') || '';
+// 生成或获取用户ID
+let USER_ID = localStorage.getItem('cf_user_id') || '';
+if (!USER_ID) {
+  USER_ID = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  localStorage.setItem('cf_user_id', USER_ID);
+}
 let rafId = null;
 let speechTimer = null;
 let speechList = [];
@@ -1255,27 +1260,11 @@ let dirLight = null, fillLight = null;
 let extraMeshes = [];  // fiber grass + fat blobs
 
 // ── API Modal ─────────────────────────────────────────────────────────────
-{
-  const modal     = document.getElementById('api-modal');
-  const hasKeyMsg = document.getElementById('api-has-key-msg');
-  const inputRow  = document.getElementById('api-input-row');
-  const keyInput  = document.getElementById('api-key-input');
-  const closeBtn  = document.getElementById('api-close-btn');
-
-  if (API_KEY) {
-    hasKeyMsg.style.display = 'block';
-    inputRow.style.display  = 'none';
-  } else {
-    hasKeyMsg.style.display = 'none';
-    inputRow.style.display  = 'flex';
-  }
-
-  closeBtn.addEventListener('click', () => {
-    const k = keyInput?.value?.trim();
-    if (k) { API_KEY = k; localStorage.setItem('cf_key', API_KEY); }
-    modal.style.display = 'none';
-  });
-}
+// 后端已处理API密钥，无需用户输入。直接隐藏模态框。
+window.addEventListener('load', () => {
+  const modal = document.getElementById('api-modal');
+  if (modal) modal.style.display = 'none';
+});
 
 // ── Retro post-process shader ─────────────────────────────────────────────
 const RetroShader = {
@@ -1626,7 +1615,6 @@ function applyPlaceholderRetro() {
 
 // ── Pipeline ──────────────────────────────────────────────────────────────
 async function handleFile(file) {
-  if (!API_KEY) { showErr('Please enter your API key (reload the page).'); return; }
   clearErr();
   // Prime TTS engine while user gesture is still active (before async calls expire the gesture context)
   if (window.speechSynthesis) {
@@ -1732,69 +1720,40 @@ function loadImg(src) {
   });
 }
 
-// ── Claude API ────────────────────────────────────────────────────────────
-async function claude(system, content) {
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
+// ── Claude API via Backend ────────────────────────────────────────────────
+// 直接调用后端API，而不是Anthropic API
+async function analyzeFood(b64, mime) {
+  const response = await fetch('/api/analyze', {
     method: 'POST',
-    headers: {
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-opus-4-5',
-      max_tokens: 1600,
-      system,
-      messages: [{ role: 'user', content }]
+      userId: USER_ID,
+      b64: b64,
+      mimeType: mime
     })
   });
-  if (!r.ok) throw new Error(`API ${r.status}: ${await r.text()}`);
-  return (await r.json()).content[0].text;
-}
 
-async function analyzeFood(b64, mime) {
-  const sys = `You are a food recognition and nutrition expert.
-Respond ONLY with valid JSON (no markdown fences) matching this schema exactly:
-{
-  "name": "common food name",
-  "sharpness": 0-10,
-  "dominantMacro": "sugar|fat|protein|fiber",
-  "foodCategory": "vegetable|meat|carb|snack",
-  "colorProfile": "warm|cool|neutral",
-  "personality": "2-sentence character personality based on dominant macro and shape",
-  "faceX": 0.0-1.0,
-  "faceY": 0.0-1.0,
-  "faceScale": 0.0-1.0,
-  "nutrients": {
-    "sugar": number, "fat": number, "protein": number, "carbs": number,
-    "fiber": number, "potassium": number, "magnesium": number,
-    "calcium": number, "vitaminC": number
-  },
-  "speeches": [
-    {
-      "nutrient": "Nutrient Name",
-      "amount": "Xg",
-      "text": "First-person 1-2 sentences. Wrap nutrient name and amount in **bold**. Translate numbers into feelings or superpowers. Match the personality."
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || `Backend error: ${response.status}`);
+  }
+
+  const result = await response.json();
+  
+  // 显示剩余调用次数
+  if (result.remaining !== undefined) {
+    const remaining = result.remaining;
+    if (remaining === 0) {
+      showErr(`今天的配额已用完 (0/5)。请明天再试！`);
+    } else if (remaining < 3) {
+      console.log(`⚠️ 今天还剩 ${remaining}/5 次调用`);
     }
-  ],
-  "foodPolygon": [[0.1,0.2],[0.3,0.05],...]
-}
-faceX/faceY: normalized 0-1 (image coords, 0=top-left) of the face center on the food.
-faceScale: fraction of image width the face region spans.
-speeches: 5-7 items, one per key nutrient. Use casual personality-appropriate language.
-foodPolygon: 50-80 normalized [x,y] points tracing the complete outer silhouette clockwise.
-foodCategory: classify the food — "vegetable" if vegetables dominate, "meat" if meat/fish/poultry dominate, "carb" if starchy carbs (bread/rice/pasta/potato) dominate, "snack" if it is a processed sugar/fat snack (candy/chips/cake/pastry).
-Use standard per-serving nutritional values.`;
+  }
 
-  const raw = await claude(sys, [
-    { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
-    { type: 'text', text: 'Analyze this food image.' }
-  ]);
-  return JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+  return result.data;
 }
 
-// ── Face feature extraction ───────────────────────────────────────────────
+// ── Face feature extraction via Backend ───────────────────────────────────
 async function extractFaceFeatures(img) {
   const c = document.createElement('canvas');
   const maxDim = 768;
@@ -1804,16 +1763,29 @@ async function extractFaceFeatures(img) {
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   const b64 = c.toDataURL('image/jpeg', 0.88).split(',')[1];
 
-  const sys = `You are a face landmark detector.
-Respond ONLY with valid JSON (no markdown) matching this schema exactly:
-{"leftEye":{"x":0.0,"y":0.0,"w":0.0,"h":0.0},"rightEye":{"x":0.0,"y":0.0,"w":0.0,"h":0.0},"nose":{"x":0.0,"y":0.0,"w":0.0,"h":0.0},"mouth":{"x":0.0,"y":0.0,"w":0.0,"h":0.0}}
-x,y=top-left (0-1 normalized), w,h=width/height (0-1 normalized). Include ~25% padding.`;
+  try {
+    const response = await fetch('/api/face-features', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ b64: b64 })
+    });
 
-  const raw = await claude(sys, [
-    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
-    { type: 'text', text: 'Return the facial feature bounding boxes for this portrait.' }
-  ]);
-  return JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result.data;
+  } catch (error) {
+    console.warn('Face feature extraction failed:', error);
+    // 返回默认值，让应用继续运行
+    return {
+      leftEye: { x: 0.35, y: 0.3, w: 0.12, h: 0.15 },
+      rightEye: { x: 0.65, y: 0.3, w: 0.12, h: 0.15 },
+      nose: { x: 0.5, y: 0.5, w: 0.08, h: 0.12 },
+      mouth: { x: 0.5, y: 0.7, w: 0.2, h: 0.1 }
+    };
+  }
 }
 
 function cropFaceFeatures(img, boxes) {
