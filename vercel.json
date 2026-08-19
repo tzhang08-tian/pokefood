@@ -13,5 +13,22 @@
       "src": "api/*.js",
       "use": "@vercel/node"
     }
+  ],
+  "routes": [
+    {
+      "src": "/api/analyze",
+      "dest": "/api/analyze.js"
+    },
+    {
+      "src": "/api/face-features",
+      "dest": "/api/face-features.js"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
+    }
   ]
 }
