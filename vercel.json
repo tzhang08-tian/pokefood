@@ -6,7 +6,11 @@
       "use": "@vercel/static"
     },
     {
-      "src": "api/*.js",
+      "src": "faces/**/*",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/**/*.js",
       "use": "@vercel/node"
     }
   ],
