@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CrazyFood</title>
+<title>Pokefood by fc9</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@200;300&family=Special+Elite&family=Lobster&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
@@ -1734,8 +1734,12 @@ async function analyzeFood(b64, mime) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || `Backend error: ${response.status}`);
+    const errorText = await response.text();
+    let errorMessage = errorText;
+    try {
+      errorMessage = JSON.parse(errorText).message || errorText;
+    } catch (_) {}
+    throw new Error(errorMessage || `Backend error: ${response.status}`);
   }
 
   const result = await response.json();
