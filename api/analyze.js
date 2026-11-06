@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 // 格式：{ "userId:YYYY-MM-DD": count }
 const callCounts = new Map();
 
-const MAX_CALLS_PER_DAY = 5;
+const MAX_CALLS_PER_DAY = 200; // the on-site display shares one user id, so keep this high
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 // 获取当天日期
