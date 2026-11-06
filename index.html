@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Pokefood by fc9</title>
+<title>foodswag by fc9</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@200;300&family=Special+Elite&family=Lobster&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+<script src="vendor/qrcode.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -88,50 +89,53 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   pointer-events: none; display: none;
 }
 
+@font-face {
+  font-family: 'Ubuntu Condensed';
+  src: url('fonts/UbuntuCondensed-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+
+/* Bottom-most layer: small grey text drifting slowly across the whole background */
 .placeholder {
   position: absolute; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 1.2rem;
+  z-index: 0;
+  overflow: hidden;
 }
 #placeholder-text {
-  display: flex; flex-wrap: nowrap;
-  justify-content: center; align-items: center;
-  white-space: nowrap;
-  font-family: 'Lobster', cursive;
-  font-size: 42px;
-  -webkit-text-stroke: 1.2px #111;
-  paint-order: stroke fill;
-  cursor: default; user-select: none;
-  filter: url(#retro-text-filter);
-}
-/* Nutrient fact hint — shown top-center when hovering a placeholder letter */
-#ph-nutrient-hint {
-  position: absolute;
-  top: 1.6rem; left: 50%;
-  transform: translateX(-50%);
-  max-width: 70%;
-  text-align: center;
-  font-family: 'Times New Roman', Times, serif;
-  font-size: 14px;
+  position: absolute; inset: 0;
+  overflow: hidden;
+  font-family: 'Ubuntu Condensed', 'Ubuntu', sans-serif;
+  font-size: 22px;
   line-height: 1.5;
-  color: #999;
+  text-align: justify;
+  word-break: keep-all;      /* never split a word across lines */
+  overflow-wrap: normal;
+  cursor: default; user-select: none;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.25s ease;
+  filter: url(#retro-text-filter); /* only the text is filtered */
 }
-#ph-nutrient-hint.show { opacity: 1; }
-#ph-nutrient-hint b { color: #777; }
-.ph-char {
-  display: inline-block;
-  animation: phFloat var(--pf-d, 3s) ease-in-out infinite var(--pf-a, 0s),
-             phColor var(--pc-d, 4s) linear infinite var(--pc-a, 0s);
-  translate: var(--flee-x, 0px) var(--flee-y, 0px);
-  transition: translate 0.4s cubic-bezier(.25,.46,.45,.94);
+/* ASCII-art renderings of each nutrient's 3D model, embedded in the flowing text */
+.ph-ascii {
+  display: inline-block; vertical-align: middle;
+  margin: .3em 1.4em;
+  font: 700 15px/1 Menlo, 'Courier New', monospace;
+  letter-spacing: 0; text-align: left; white-space: pre;
 }
-.ph-space { display: inline-block; width: 18px; }
-@keyframes phFloat {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(var(--pf-h, -5px)); }
+/* Two identical blocks stacked; the strip drifts up slowly (page scrolling down), looping seamlessly */
+#ph-flow {
+  position: absolute; left: 0; top: 0; width: 100%;
+  animation: phFlow 140s linear infinite;
+}
+#ph-flow > div {
+  padding: 0 28px;           /* keep words inside the frame edges */
+}
+@keyframes phFlow {
+  to { transform: translateY(-50%); }
+}
+/* Single QR code pinned bottom-left, outside the filtered text so it stays scannable */
+.ph-qr {
+  position: absolute; left: 24px; bottom: 24px; display: block;
+  image-rendering: pixelated;
 }
 @keyframes phColor {
   0%   { color: hsl(0,45%,58%); }
@@ -141,32 +145,6 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   66%  { color: hsl(240,45%,62%); }
   83%  { color: hsl(300,45%,58%); }
   100% { color: hsl(360,45%,58%); }
-}
-
-/* ── Spinning circle loading mode ── */
-#placeholder-text.ph-spinning {
-  display: block !important;
-  position: relative;
-  width: 500px; height: 500px;
-  font-size: 42px;
-  animation: phSpin 12s linear infinite;
-  animation-play-state: paused; /* JS starts it after entry animation */
-  white-space: normal;
-}
-@keyframes phSpin {
-  to { transform: rotate(360deg); }
-}
-#placeholder-text.ph-spinning .ph-char,
-#placeholder-text.ph-spinning .ph-space {
-  position: absolute;
-  left: 50%; top: 50%;
-  margin-left: -0.3em; margin-top: -0.55em;
-  /* suppress phFloat; keep phColor for rainbow shimmer */
-  animation: phColor var(--pc-d, 4s) linear infinite var(--pc-a, 0s) !important;
-  /* translate stays active so flee-mouse effect still works */
-}
-#placeholder-text.ph-spinning .ph-space {
-  width: auto;
 }
 
 /* ── Nutrient list — top-left, items accumulate and stay ── */
@@ -266,49 +244,30 @@ input[type=password]:focus { border-color: var(--gray-mid); }
              phFloat var(--pf-d, 3.5s) ease-in-out infinite var(--pf-a, 0s);
 }
 
-/* Retro sliders */
+/* Text-effect control box, embedded in the background text */
 #retro-ctrl {
-  position: absolute; bottom: 3.5rem; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 1.2rem; z-index: 15;
-  background: rgba(8,8,8,.72); border: 1px solid var(--border);
-  border-radius: 20px; padding: .35rem 1rem;
-  font-size: 10px; color: var(--gray-mid); letter-spacing: .06em;
-  align-items: center;
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; gap: .55rem;
+  z-index: 1; pointer-events: auto;
+  background: #fff; border: 1px solid #000;
+  padding: .8rem 1.1rem;
+  font-family: 'Ubuntu Condensed', 'Ubuntu', sans-serif;
+  font-size: 12px; color: #000; letter-spacing: .08em; text-transform: uppercase;
 }
-#retro-ctrl label { display: flex; align-items: center; gap: .4rem; }
+#retro-ctrl label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 #retro-ctrl input[type=range] {
   -webkit-appearance: none; appearance: none;
-  width: 72px; height: 3px; background: var(--border-hi);
-  border-radius: 2px; outline: none; cursor: pointer;
+  width: 110px; height: 1px; background: #000;
+  outline: none; cursor: pointer;
 }
-/* Default: white square — rolls via JS-driven --thumb-rot; rainbow via --thumb-bg/--thumb-glow */
 #retro-ctrl input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px; height: 12px; border-radius: 2px;
-  background: var(--thumb-bg, #fff);
-  box-shadow: var(--thumb-glow, none);
-  cursor: grab;
-  transform: rotate(var(--thumb-rot, 0deg));
-  transition: background 0.3s, box-shadow 0.3s;
+  width: 10px; height: 10px; border-radius: 0;
+  background: #000; cursor: grab;
 }
-#retro-ctrl input[type=range].dragging::-webkit-slider-thumb {
-  cursor: grabbing;
-  transition: none;
-  transform: rotate(var(--thumb-rot, 0deg));
-  background: var(--thumb-bg, #fff);
-  box-shadow: var(--thumb-glow, none);
-}
-/* Firefox */
 #retro-ctrl input[type=range]::-moz-range-thumb {
-  width: 12px; height: 12px; border-radius: 2px; border: none;
-  background: var(--thumb-bg, #fff);
-  cursor: grab;
-  transform: rotate(var(--thumb-rot, 0deg));
-}
-#retro-ctrl input[type=range].dragging::-moz-range-thumb {
-  cursor: grabbing;
-  background: var(--thumb-bg, #fff);
-  transform: rotate(var(--thumb-rot, 0deg));
+  width: 10px; height: 10px; border-radius: 0; border: none;
+  background: #000; cursor: grab;
 }
 
 #hint-3d {
@@ -333,25 +292,6 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   gap: .7rem;
   pointer-events: none;
 }
-
-/* Upload — compact square, top-right */
-#upload-zone {
-  width: 90px; height: 90px;
-  border: 1px dashed var(--border-hi); border-radius: 10px;
-  background: rgba(255,255,255,0.88);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: .3rem;
-  cursor: pointer; position: relative;
-  transition: border-color .2s, background .2s;
-  color: var(--gray);
-  pointer-events: all;
-}
-#upload-zone:hover, #upload-zone.over {
-  border-color: var(--gray-mid); background: rgba(255,255,255,0.98);
-}
-#upload-zone .upload-plus { font-size: 26px; font-weight: 300; line-height: 1; }
-#upload-zone .upload-hint { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
-#upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 /* Right-side text elements */
 #error {
@@ -643,8 +583,6 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 }
 .right { transition: transform .4s cubic-bezier(.77,0,.175,1), opacity .3s; }
 .right.cv-out { transform: translateX(160%); opacity: 0; }
-/* keep retro ctrl and back button above the ::before grayscale layer */
-#card-view #retro-ctrl { position: absolute; z-index: 1; }
 
 /* ── Color picker ──────────────────────────────────────────────────────── */
 .cv-selectable { cursor: pointer; }
@@ -1011,14 +949,15 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 </head>
 <body>
 
-<!-- Retro-effect filter for the placeholder text — driven by #retro-ctrl sliders, mirrors RetroShader -->
+<!-- Retro-effect filter for the background text only — driven by #retro-ctrl sliders -->
 <svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
   <defs>
     <filter id="retro-text-filter" x="-60%" y="-60%" width="220%" height="220%" color-interpolation-filters="sRGB">
       <feGaussianBlur id="ph-blur" in="SourceGraphic" stdDeviation="0" result="ph-blurred"/>
       <feMorphology id="ph-morph" in="ph-blurred" operator="dilate" radius="0" result="ph-morphed"/>
       <feTurbulence id="ph-turb" type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="7" result="ph-noise"/>
-      <feDisplacementMap id="ph-displace" in="ph-morphed" in2="ph-noise" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+      <feDisplacementMap id="ph-displace" in="ph-morphed" in2="ph-noise" scale="0" xChannelSelector="R" yChannelSelector="G" result="ph-displaced"/>
+      <feComponentTransfer id="ph-levels" in="ph-displaced"><feFuncR type="identity"/><feFuncG type="identity"/><feFuncB type="identity"/></feComponentTransfer>
     </filter>
   </defs>
 </svg>
@@ -1127,8 +1066,14 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   <!-- Full-screen character panel -->
   <div class="char-panel">
     <div class="placeholder" id="placeholder">
-      <div id="placeholder-text"></div>
-      <div id="ph-nutrient-hint"></div>
+      <div id="placeholder-text"><div id="ph-flow"></div></div>
+      <div id="ph-qr"></div>
+      <div id="retro-ctrl">
+        <label>pixel <input type="range" id="r-pixel" min="0" max="16" step="1" value="0"></label>
+        <label>levels <input type="range" id="r-levels" min="0" max="8" step="1" value="0"></label>
+        <label>crystal <input type="range" id="r-crystal" min="0" max="60" step="1" value="0"></label>
+        <label>blur <input type="range" id="r-blur" min="0" max="8" step="1" value="0"></label>
+      </div>
     </div>
     <canvas id="shadow-canvas"></canvas>
     <div id="three-mount"></div>
@@ -1141,22 +1086,10 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
     <div id="speech-display"><div id="speech-inner"></div></div>
 
     <div id="hint-3d">drag to rotate &nbsp;·&nbsp; scroll to zoom</div>
-    <div id="retro-ctrl">
-      <label>pixel <input type="range" id="r-pixel" min="2" max="16" step="1" value="6"></label>
-      <label>levels <input type="range" id="r-levels" min="2" max="8" step="1" value="4"></label>
-      <label>dots <input type="range" id="r-dots" min="0" max="16" step="1" value="0"></label>
-      <label>crystal <input type="range" id="r-crystal" min="0" max="60" step="1" value="0"></label>
-      <label>blur <input type="range" id="r-blur" min="0" max="20" step="1" value="0"></label>
-    </div>
   </div>
 
   <!-- Floating right overlay: upload box + text only, no panel background -->
   <div class="right">
-    <div id="upload-zone">
-      <span class="upload-plus">+</span>
-      <span class="upload-hint">photo</span>
-      <input type="file" id="file-input" accept="image/*" />
-    </div>
 
     <div id="error"></div>
     <div id="food-name"></div>
@@ -1220,37 +1153,6 @@ let blurTimeout = null;
 let speechScrollOff = 0;
 let textColorCur = 0, textColorTarget = 0, bgFrameCount = 0;
 let textLayout = 'left'; // 'left' | 'topbottom'
-const sliderDragging   = new Set(); // ids of sliders currently held by user
-const sliderAutoMoving = new Set(); // ids of sliders moving due to auto-randomize
-// Rolling rotation: accumulated angle per slider, driven by value delta each frame
-const sliderRot  = { 'r-pixel': 0, 'r-levels': 0, 'r-dots': 0, 'r-crystal': 0, 'r-blur': 0 };
-const sliderPrev = { 'r-pixel': 6, 'r-levels': 4, 'r-dots': 0, 'r-crystal': 0, 'r-blur': 0 };
-// Degrees per unit — physics-based (track=72px, thumb=12px sq, circ≈37.7px)
-const sliderDeg  = { 'r-pixel': 49, 'r-levels': 115, 'r-dots': 43, 'r-crystal': 22, 'r-blur': 34 };
-// Rainbow state — driven by a dedicated RAF loop while any slider is dragging
-let rainbowHue = 0;
-let rainbowRaf = null;
-function rainbowLoop() {
-  if (sliderDragging.size === 0 && sliderAutoMoving.size === 0) { rainbowRaf = null; return; }
-  rainbowHue = (rainbowHue + 3.5) % 360;
-  const col = `hsl(${rainbowHue.toFixed(1)},100%,60%)`;
-  sliderDragging.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.style.setProperty('--thumb-bg',   col);
-      el.style.setProperty('--thumb-glow', `0 0 8px ${col}`);
-    }
-  });
-  sliderAutoMoving.forEach(id => {
-    if (sliderDragging.has(id)) return; // dragging already handled above
-    const el = document.getElementById(id);
-    if (el) {
-      el.style.setProperty('--thumb-bg',   col);
-      el.style.setProperty('--thumb-glow', `0 0 8px ${col}`);
-    }
-  });
-  rainbowRaf = requestAnimationFrame(rainbowLoop);
-}
 // Tiny offscreen canvas for background-luminance sampling
 const _bgSampler = document.createElement('canvas');
 _bgSampler.width = 8; _bgSampler.height = 8;
@@ -1411,66 +1313,6 @@ let cvPickCanvas = null;             // 1×1 offscreen canvas for pixel sampling
 // ── Event wiring ──────────────────────────────────────────────────────────
 document.getElementById('reset-btn').addEventListener('click', resetAll);
 
-const zone = document.getElementById('upload-zone');
-zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('over'); });
-zone.addEventListener('dragleave', () => zone.classList.remove('over'));
-zone.addEventListener('drop', e => {
-  e.preventDefault(); zone.classList.remove('over');
-  const f = e.dataTransfer.files[0];
-  if (f?.type.startsWith('image/')) handleFile(f);
-  else showErr('Please drop an image file.');
-});
-document.getElementById('file-input').addEventListener('change', e => {
-  if (e.target.files[0]) handleFile(e.target.files[0]);
-});
-
-document.getElementById('r-pixel').addEventListener('input', e => {
-  pixelCur = pixelTarget = +e.target.value;
-});
-document.getElementById('r-levels').addEventListener('input', e => {
-  levelsCur = levelsTarget = +e.target.value;
-});
-document.getElementById('r-dots').addEventListener('input', e => {
-  const v = +e.target.value;
-  if (v === 0) {
-    halftoneTarget = halftoneCur = 0;
-  } else {
-    dotSizeCur = dotSizeTarget = v;
-    halftoneTarget = halftoneCur = 1;
-  }
-});
-document.getElementById('r-crystal').addEventListener('input', e => {
-  const v = +e.target.value;
-  if (v === 0) {
-    crystalTarget = crystalCur = 0;
-  } else {
-    crystalSizeCur = crystalSizeTarget = v;
-    crystalTarget = crystalCur = 1;
-  }
-});
-document.getElementById('r-blur').addEventListener('input', e => {
-  blurCur = blurTarget = +e.target.value;
-});
-
-// Drag-state: add .dragging class while any slider thumb is held
-['r-pixel', 'r-levels', 'r-dots', 'r-crystal', 'r-blur'].forEach(id => {
-  document.getElementById(id).addEventListener('mousedown', () => {
-    sliderDragging.add(id);
-    document.getElementById(id).classList.add('dragging');
-    if (!rainbowRaf) rainbowRaf = requestAnimationFrame(rainbowLoop);
-  });
-});
-window.addEventListener('mouseup', () => {
-  sliderDragging.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.classList.remove('dragging');
-    el.style.removeProperty('--thumb-bg');
-    el.style.removeProperty('--thumb-glow');
-  });
-  sliderDragging.clear();
-});
-
 // Wheel-scroll for the nutrient list.
 // #left-scroll-zone sits above the canvas on the left, so wheel events here
 // never reach OrbitControls (which lives on the canvas below).
@@ -1527,8 +1369,7 @@ function scheduleRetroRandomize() {
 scheduleRetroRandomize();
 
 // ── Retro effects loop — always running (even before a model is loaded),
-// drives both the 3D model's shader (when present) and the homepage
-// placeholder text, so #retro-ctrl affects both "in the same form" ─────────
+// drives the 3D model's shader (when present). Independent of #retro-ctrl. ──
 function updateRetroEffects() {
   // Lerp retro values toward their targets (~2 s transition at 60 fps)
   pixelCur      += (pixelTarget      - pixelCur)      * 0.025;
@@ -1548,65 +1389,63 @@ function updateRetroEffects() {
     retroPass.uniforms.blurAmount.value  = blurCur;
   }
 
-  // Mirror lerped values back to sliders so the thumb slides smoothly during auto-changes
-  if (!sliderDragging.has('r-pixel'))   document.getElementById('r-pixel').value   = Math.round(Math.max(2, pixelCur));
-  if (!sliderDragging.has('r-levels'))  document.getElementById('r-levels').value  = Math.round(Math.max(2, levelsCur));
-  if (!sliderDragging.has('r-dots'))    document.getElementById('r-dots').value    = Math.round(halftoneCur * dotSizeCur);
-  if (!sliderDragging.has('r-crystal')) document.getElementById('r-crystal').value = crystalCur < 0.05 ? 0 : Math.round(crystalSizeCur);
-  if (!sliderDragging.has('r-blur'))    document.getElementById('r-blur').value    = Math.round(Math.max(0, blurCur));
+}
 
-  // Roll each thumb: accumulate rotation proportional to value delta (right=CW, left=CCW)
-  // Also drive rainbow color for auto-movement (not just user drag)
-  ['r-pixel', 'r-levels', 'r-dots', 'r-crystal', 'r-blur'].forEach(id => {
-    const el  = document.getElementById(id);
-    const cur = +el.value;
-    const delta = cur - sliderPrev[id];
-    sliderPrev[id] = cur;
-    sliderRot[id] += delta * sliderDeg[id];
-    el.style.setProperty('--thumb-rot', sliderRot[id].toFixed(1) + 'deg');
+// ── Background-text filter: driven only by the #retro-ctrl sliders ───────
+const IDS = ['r-pixel', 'r-levels', 'r-crystal', 'r-blur'];
+const tf = { 'r-pixel': 0, 'r-levels': 0, 'r-crystal': 0, 'r-blur': 0 };   // current (lerped)
+const tfTarget = { ...tf };
+const tfHeld = new Set(); // sliders the user is holding
 
-    if (!sliderDragging.has(id)) {
-      // Check underlying float convergence, not integer delta (delta is 0 most lerp frames)
-      const isMoving = id === 'r-pixel'
-        ? Math.abs(pixelCur - pixelTarget) > 0.15
-        : id === 'r-levels'
-        ? Math.abs(levelsCur - levelsTarget) > 0.15
-        : id === 'r-dots'
-        ? Math.abs(halftoneCur - halftoneTarget) > 0.01 || Math.abs(dotSizeCur - dotSizeTarget) > 0.15
-        : id === 'r-crystal'
-        ? Math.abs(crystalCur - crystalTarget) > 0.01 || Math.abs(crystalSizeCur - crystalSizeTarget) > 0.15
-        : Math.abs(blurCur - blurTarget) > 0.15;
-      if (isMoving) {
-        sliderAutoMoving.add(id);
-        if (!rainbowRaf) rainbowRaf = requestAnimationFrame(rainbowLoop);
-      } else if (sliderAutoMoving.has(id)) {
-        sliderAutoMoving.delete(id);
-        el.style.removeProperty('--thumb-bg');
-        el.style.removeProperty('--thumb-glow');
-      }
+function applyTextFilter() {
+  document.getElementById('ph-morph').setAttribute('radius', (tf['r-pixel'] * 0.1).toFixed(2));
+  document.getElementById('ph-blur').setAttribute('stdDeviation', tf['r-blur'].toFixed(2));
+  const crystal = tf['r-crystal'];
+  document.getElementById('ph-displace').setAttribute('scale', (crystal > 0.5 ? 14 : 0));
+  document.getElementById('ph-turb').setAttribute('baseFrequency', (1 / Math.max(4, crystal * 4)).toFixed(4));
+  const n = Math.round(tf['r-levels']);
+  const table = n >= 2 ? Array.from({ length: n }, (_, i) => (i / (n - 1)).toFixed(3)).join(' ') : '';
+  document.querySelectorAll('#ph-levels > *').forEach(f => {
+    if (n >= 2) { f.setAttribute('type', 'discrete'); f.setAttribute('tableValues', table); }
+    else { f.setAttribute('type', 'identity'); f.removeAttribute('tableValues'); }
+  });
+}
+IDS.forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => { tf[id] = tfTarget[id] = +el.value; applyTextFilter(); });
+  el.addEventListener('pointerdown', () => tfHeld.add(id));
+});
+addEventListener('pointerup', () => tfHeld.clear());
+
+// Random effect every 3–10 s; sliders glide to the new values.
+function randomizeTextFilter() {
+  const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+  IDS.forEach(id => { if (!tfHeld.has(id)) tfTarget[id] = 0; });
+  const r = Math.random();
+  if (r < 0.18) { /* passthrough */ }
+  else if (r < 0.40) { tfTarget['r-pixel'] = rnd(3, 16); tfTarget['r-levels'] = rnd(4, 8); }
+  else if (r < 0.60) { tfTarget['r-levels'] = rnd(4, 6); }
+  else if (r < 0.80) { tfTarget['r-crystal'] = rnd(5, 55); }
+  else { tfTarget['r-blur'] = rnd(2, 6); }
+  setTimeout(randomizeTextFilter, rnd(3000, 10000));
+}
+randomizeTextFilter();
+
+(function textFilterLoop() {
+  let changed = false;
+  IDS.forEach(id => {
+    if (tfHeld.has(id)) return;
+    const d = tfTarget[id] - tf[id];
+    if (Math.abs(d) > 0.01) {
+      tf[id] += d * 0.06;
+      document.getElementById(id).value = Math.round(tf[id]);
+      changed = true;
     }
   });
-
-  applyPlaceholderRetro();
-}
-
-// Apply the same retro values to the homepage placeholder text via an SVG
-// filter (#retro-text-filter) plus a halftone-dot overlay — same lerped
-// state (pixelCur/halftoneCur/dotSizeCur/crystalCur/crystalSizeCur/blurCur)
-// that drives RetroShader's uniforms for the 3D model.
-function applyPlaceholderRetro() {
-  // pixel → blocky dilation
-  const dilateR = Math.max(0, (pixelCur - 2) * 0.16);
-  document.getElementById('ph-morph')?.setAttribute('radius', dilateR.toFixed(2));
-
-  // blur → direct Gaussian blur, same units as the shader's blurAmount
-  document.getElementById('ph-blur')?.setAttribute('stdDeviation', Math.max(0, blurCur).toFixed(2));
-
-  // crystal → turbulence-driven displacement (shatter/warp)
-  document.getElementById('ph-displace')?.setAttribute('scale', (crystalCur * 14).toFixed(1));
-  const freq = 1 / Math.max(4, crystalSizeCur * 4);
-  document.getElementById('ph-turb')?.setAttribute('baseFrequency', freq.toFixed(4));
-}
+  if (changed) applyTextFilter();
+  requestAnimationFrame(textFilterLoop);
+})();
+applyTextFilter();
 
 (function retroLoop() {
   updateRetroEffects();
@@ -1722,8 +1561,16 @@ function loadImg(src) {
 
 // ── Claude API via Backend ────────────────────────────────────────────────
 // 直接调用后端API，而不是Anthropic API
+function getBackendUrl(path) {
+  const isLocalHost = ['localhost', '127.0.0.1'].includes(location.hostname);
+  if (isLocalHost && location.port !== '3000') {
+    return `http://${location.hostname}:3000${path}`;
+  }
+  return path;
+}
+
 async function analyzeFood(b64, mime) {
-  const response = await fetch('/api/analyze', {
+  const response = await fetch(getBackendUrl('/api/analyze'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -1768,7 +1615,7 @@ async function extractFaceFeatures(img) {
   const b64 = c.toDataURL('image/jpeg', 0.88).split(',')[1];
 
   try {
-    const response = await fetch('/api/face-features', {
+    const response = await fetch(getBackendUrl('/api/face-features'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ b64: b64 })
@@ -2751,8 +2598,7 @@ function switchToColumn(modelScreenX, modelScreenY, modelScrRadius, screenW) {
   const H = window.innerHeight;
   const rightPanel    = document.querySelector('.right');
   const rightPanelLeft = rightPanel ? rightPanel.getBoundingClientRect().left : W - 210;
-  const retroBar      = document.getElementById('retro-ctrl');
-  const barTop        = retroBar ? retroBar.getBoundingClientRect().top : H - 100;
+  const barTop        = H - 100;
 
   const colW  = 200;
   const itemH = 30;
@@ -2990,79 +2836,9 @@ function speakItem(text, onDone, bodyEl) {
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────
-let _spinnerStartTimer = null;
-
-function startLoadingSpinner() {
-  const container = document.getElementById('placeholder-text');
-  const all = Array.from(container.querySelectorAll('.ph-char, .ph-space'));
-  const N = all.length;
-  const R = 190; // base circle radius in px
-
-  // ── FLIP step 1: snapshot current positions in the inline horizontal layout ──
-  const origCenters = all.map(ch => {
-    const r = ch.getBoundingClientRect();
-    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
-  });
-
-  // ── Pre-compute circle slots (jittered, stable for this session) ──
-  const slots = all.map((_, i) => ({
-    angle: (i / N) * 360 - 90 + (Math.random() - 0.5) * (360 / N) * 0.5,
-    r:     R + (Math.random() - 0.5) * 22,
-    tilt:  (Math.random() - 0.5) * 18,
-  }));
-
-  // ── FLIP step 2: switch layout (chars jump to container centre) ──
-  container.classList.add('ph-spinning');
-  // CSS keeps animation-play-state:paused during entry
-
-  // ── FLIP step 3: measure new positions (all at centre now) ──
-  const newCenters = all.map(ch => {
-    const r = ch.getBoundingClientRect();
-    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
-  });
-
-  // ── FLIP step 4: instantly cancel the jump — each char appears where it was ──
-  all.forEach((ch, i) => {
-    const dx = (origCenters[i].cx - newCenters[i].cx).toFixed(1);
-    const dy = (origCenters[i].cy - newCenters[i].cy).toFixed(1);
-    ch.style.transition = 'none';
-    ch.style.transform  = `translate(${dx}px,${dy}px)`;
-  });
-
-  // ── FLIP step 5: stagger-release right → left to their circle slots ──
-  const STAGGER = 0.55;  // total spread across all chars (s)
-  const FLY_DUR = 0.70;  // per-char fly duration (s)
-
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    all.forEach((ch, i) => {
-      const { angle, r, tilt } = slots[i];
-      const finalT = `rotate(${angle.toFixed(2)}deg) translateY(-${r.toFixed(1)}px) rotate(${tilt.toFixed(1)}deg)`;
-      // rightmost char (i = N-1) → delay 0 s; leftmost (i = 0) → delay STAGGER s
-      const delay = (STAGGER * (N - 1 - i) / (N - 1)).toFixed(3);
-      ch.style.transition = `transform ${FLY_DUR}s cubic-bezier(0.34,1.38,0.64,1) ${delay}s`;
-      ch.style.transform  = finalT;
-    });
-
-    // Start the ring rotating after the last char lands
-    if (_spinnerStartTimer) clearTimeout(_spinnerStartTimer);
-    _spinnerStartTimer = setTimeout(() => {
-      container.style.animationPlayState = 'running';
-      _spinnerStartTimer = null;
-    }, (STAGGER + FLY_DUR + 0.12) * 1000);
-  }));
-}
-
-function stopLoadingSpinner() {
-  if (_spinnerStartTimer) { clearTimeout(_spinnerStartTimer); _spinnerStartTimer = null; }
-  const container = document.getElementById('placeholder-text');
-  if (!container.classList.contains('ph-spinning')) return;
-  container.style.animationPlayState = '';
-  container.querySelectorAll('.ph-char, .ph-space').forEach(ch => {
-    ch.style.transition = '';
-    ch.style.transform  = '';
-  });
-  container.classList.remove('ph-spinning');
-}
+// Background text no longer animates position, so loading spinner is a no-op.
+function startLoadingSpinner() {}
+function stopLoadingSpinner() {}
 
 function showProgress(on) {
   document.getElementById('progress').style.display = on ? 'block' : 'none';
@@ -3109,79 +2885,247 @@ function showErr(msg) {
 }
 function clearErr() { document.getElementById('error').style.display = 'none'; }
 
-// ── Placeholder floating text ─────────────────────────────────────────────
-// Nutrient fact shown when hovering (fleeing from) a placeholder letter —
-// keyed by the letter's lowercase first character, [name, role-in-the-body].
-const NUTRIENT_FACTS = {
-  a: ['Vitamin A',           'supports healthy vision, immune defense, and skin-cell renewal.'],
-  c: ['Vitamin C',           'an antioxidant that strengthens immunity and builds collagen for skin and joints.'],
-  d: ['Vitamin D',           'helps the body absorb calcium, keeping bones and teeth strong.'],
-  e: ['Vitamin E',           'an antioxidant that protects cell membranes from oxidative damage.'],
-  f: ['Folate (Vitamin B9)', 'essential for DNA synthesis and healthy cell division, especially during growth.'],
-  g: ['Glutamine',           'an amino acid that fuels the cells lining the gut and supports immune function.'],
-  h: ['Biotin (Vitamin H)',  'helps the body convert carbs, fats, and proteins into usable energy.'],
-  l: ['Lutein',              "a carotenoid that filters harmful light and protects the eye's retina."],
-  n: ['Niacin (Vitamin B3)', 'powers cellular energy production and supports a healthy nervous system.'],
-  o: ['Omega-3 Fatty Acids', 'support heart and brain health and help reduce inflammation.'],
-  p: ['Potassium',           'regulates fluid balance, nerve signals, and muscle contractions, including the heartbeat.'],
-  r: ['Riboflavin (Vitamin B2)', 'helps release energy from food and keeps skin and eyes healthy.'],
-  t: ['Thiamine (Vitamin B1)',   'helps convert nutrients into energy and supports nerve function.'],
-  u: ['Ubiquinone (CoQ10)',  'an antioxidant that powers cell mitochondria and supports heart health.'],
-};
-{
-  const text = 'upload a food photo to generate character card';
-  const container = document.getElementById('placeholder-text');
-  for (const ch of text) {
-    if (ch === ' ') {
-      const sp = document.createElement('span');
-      sp.className = 'ph-space';
-      container.appendChild(sp);
-    } else {
-      const s = document.createElement('span');
-      s.className = 'ph-char';
-      s.textContent = ch;
-      s.style.setProperty('--pf-d', `${(2.5 + Math.random() * 2.5).toFixed(2)}s`);
-      s.style.setProperty('--pf-a', `-${(Math.random() * 5).toFixed(2)}s`);
-      s.style.setProperty('--pf-h', `-${(3 + Math.random() * 6).toFixed(1)}px`);
-      s.style.setProperty('--pc-d', `${(3.5 + Math.random() * 3.5).toFixed(2)}s`);
-      s.style.setProperty('--pc-a', `-${(Math.random() * 7).toFixed(2)}s`);
-      container.appendChild(s);
+// ── ASCII sprites: each nutrient's 3D model rendered offscreen, then turned into
+// coloured ASCII art (denser characters = darker shading) ──────────────────
+function makeNutrientAscii() {
+  const COLS = 32, ROWS = 16, CW = 6, CH = 10;      // glyph grid and px sampled per glyph
+  const W = COLS * CW, H = ROWS * CH;
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, preserveDrawingBuffer: true });
+  } catch (e) { return []; }
+  renderer.setSize(W, H, false);
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
+  cam.position.set(0, 0, 5.2);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const key = new THREE.DirectionalLight(0xffffff, 3);
+  key.position.set(-3, 4, 5);
+  scene.add(key);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, flatShading: true, side: THREE.DoubleSide });
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  const RAMP = ' .:-=+*#%@';
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  const mesh = g => new THREE.Mesh(g, mat);
+  const BUILD = {
+    // fat — cluster of low-poly yellow blobs
+    fat() {
+      const g = new THREE.Group();
+      [[-0.9,-0.5,0,0.8],[0.8,-0.6,0.3,0.7],[0,0.7,0,0.75],[-0.1,-0.9,0.9,0.5],[0.1,0.1,0.8,0.5]].forEach(([x,y,z,r]) => {
+        const m = mesh(new THREE.SphereGeometry(r, 6, 5)); m.position.set(x, y, z); g.add(m);
+      });
+      return g;
+    },
+    // fiber — tuft of green sticks
+    fiber() {
+      const g = new THREE.Group();
+      for (let i = 0; i < 9; i++) {
+        const h = rnd(1.8, 2.6);
+        const m = mesh(new THREE.CylinderGeometry(0.05, 0.14, h, 4));
+        m.geometry.translate(0, h / 2, 0);
+        m.position.set(rnd(-0.6, 0.6), -1.3, rnd(-0.4, 0.4));
+        m.rotation.set(rnd(-0.4, 0.4), rnd(0, 6), rnd(-0.45, 0.45));
+        g.add(m);
+      }
+      return g;
+    },
+    // vitamin C — six-pointed star
+    vitamin() {
+      const geo = new THREE.ExtrudeGeometry(makeStarShape(1.5, 0.58), { depth: 0.3, bevelEnabled: false });
+      geo.center();
+      return mesh(geo);
+    },
+    // carbs — interlocking flat rings
+    carbs() {
+      const g = new THREE.Group();
+      [-0.7, 0.7].forEach((x, i) => {
+        const geo = new THREE.ExtrudeGeometry(makeRingShape(1.05, 0.5), { depth: 0.32, bevelEnabled: false });
+        geo.center();
+        const m = mesh(geo); m.position.x = x; m.rotation.y = i ? -0.7 : 0.7; g.add(m);
+      });
+      return g;
+    },
+    // protein — double helix
+    protein() {
+      const geo = buildDoubleHelixGeometry(3.0, 0.55, 2.5, 0.13, 7);
+      geo.translate(0, -1.5, 0);
+      return mesh(geo);
+    },
+    // sugar — spiky ball
+    sugar() {
+      const geo = new THREE.IcosahedronGeometry(0.85, 1);
+      const pos = geo.attributes.position, seen = new Map();
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        const k = `${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)}`;
+        if (!seen.has(k)) seen.set(k, Math.random() < 0.45 ? rnd(0.5, 1.0) : rnd(-0.05, 0.1));
+        const r = Math.hypot(x, y, z), f = (r + seen.get(k)) / r;
+        pos.setXYZ(i, x * f, y * f, z * f);
+      }
+      geo.computeVertexNormals();
+      return mesh(geo);
+    },
+  };
+  // On-white-background colours matching the 3D models (protein is white → light grey)
+  const COLOR = { fat: '#d9a400', fiber: '#3fae4a', vitamin: '#e0191f', carbs: '#2f6fd6', protein: '#8c8c8c', sugar: '#e8742a' };
+  const UPRIGHT = { fiber: true, protein: true };
+  const FLAT = { vitamin: true, carbs: true };   // flat shapes: keep them mostly face-on so the outline reads
+
+  const sprites = [];
+  for (const name of Object.keys(BUILD)) {
+    for (let v = 0; v < 3; v++) {
+      const obj = BUILD[name]();
+      if (UPRIGHT[name]) obj.rotation.set(rnd(-0.1, 0.1), v * 2.1 + rnd(0, 1), 0);
+      else if (FLAT[name]) obj.rotation.set(rnd(-0.4, 0.4), rnd(-0.5, 0.5), rnd(-0.6, 0.6));
+      else obj.rotation.set(rnd(-0.7, 0.7), rnd(-0.9, 0.9) + v, rnd(-0.5, 0.5));
+      scene.add(obj);
+      renderer.render(scene, cam);
+      scene.remove(obj);
+      cx.clearRect(0, 0, W, H);
+      cx.drawImage(renderer.domElement, 0, 0, W, H);
+      const px = cx.getImageData(0, 0, W, H).data;
+
+      // Per-glyph coverage + average shading
+      const cells = [];
+      let lo = 1, hi = 0;
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        let a = 0, l = 0;
+        for (let y = r * CH; y < (r + 1) * CH; y++) for (let x = c * CW; x < (c + 1) * CW; x++) {
+          const o = (y * W + x) * 4, al = px[o + 3];
+          a += al; l += al * (px[o] + px[o + 1] + px[o + 2]) / 765;
+        }
+        const cover = a / (CW * CH * 255), lum = a ? l / a / 255 : 0;
+        cells.push({ cover, lum });
+        if (cover >= 0.3) { lo = Math.min(lo, lum); hi = Math.max(hi, lum); }
+      }
+      const span = Math.max(0.001, hi - lo);
+      let art = '';
+      cells.forEach((cell, i) => {
+        if (cell.cover < 0.3) art += ' ';
+        else {
+          const dark = 1 - (cell.lum - lo) / span;           // 0 = lit, 1 = shadow
+          art += RAMP[1 + Math.min(RAMP.length - 2, Math.floor(dark * (RAMP.length - 1)))];
+        }
+        if (i % COLS === COLS - 1) art += '\n';
+      });
+      sprites.push({ name, color: COLOR[name], art: art.trimEnd() });
     }
   }
+  renderer.dispose();
+  renderer.forceContextLoss();
+  return sprites;
+}
 
-  document.addEventListener('mousemove', e => {
-    const ph = document.getElementById('placeholder');
-    if (!ph || ph.style.display === 'none') return;
-    let nearest = null, nearestDist = Infinity;
-    ph.querySelectorAll('.ph-char').forEach(ch => {
-      const r  = ch.getBoundingClientRect();
-      const cx = r.left + r.width  / 2;
-      const cy = r.top  + r.height / 2;
-      const dx = cx - e.clientX;
-      const dy = cy - e.clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const radius = 65;
-      if (dist < radius && dist > 0) {
-        const force = (radius - dist) / radius;
-        ch.style.setProperty('--flee-x', `${((dx / dist) * force * 45).toFixed(1)}px`);
-        ch.style.setProperty('--flee-y', `${((dy / dist) * force * 45).toFixed(1)}px`);
-        if (dist < nearestDist) { nearestDist = dist; nearest = ch; }
-      } else {
-        ch.style.setProperty('--flee-x', '0px');
-        ch.style.setProperty('--flee-y', '0px');
+// ── Placeholder background text ───────────────────────────────────────────
+// Small grey text tiled over the whole background (bottom layer), drifting slowly.
+{
+  const text = 'upload a food to generate your character ';
+  // Black / grey tones only (no white — the page background is white)
+  const GREYS = ['#000000', '#222222', '#444444', '#666666', '#888888', '#aaaaaa', '#cccccc'];
+  const SYMBOLS = '()()[]{}<>%%$#@&*+=/\\|~^!?;:_-';
+  const SPRITES = makeNutrientAscii();
+  const qrBox = document.getElementById('ph-qr');
+  const flow = document.getElementById('ph-flow');
+  function fillPlaceholder() {
+    const count = Math.ceil((innerWidth * innerHeight) / (22 * 5.5 * text.length) * 1.2);
+    if (flow.dataset.count == count) return;
+    flow.dataset.count = count;
+    flow.textContent = '';
+    // Two identical halves so the -50% drift loops seamlessly
+    const half = document.createElement('div');
+    let bag = [], nextArt = 25 + Math.floor(Math.random() * 20);
+    for (let i = 0; i < count; i++) {
+      if (SPRITES.length && i === nextArt) {
+        if (!bag.length) bag = SPRITES.slice().sort(() => Math.random() - 0.5);
+        const sp = bag.pop();
+        const pre = document.createElement('pre');
+        pre.className = 'ph-ascii';
+        pre.textContent = sp.art;
+        pre.style.color = sp.color;
+        half.appendChild(pre);
+        nextArt += 40 + Math.floor(Math.random() * 20);
       }
-    });
-
-    // Show a nutrient fact for the letter currently being fled from
-    const hint = document.getElementById('ph-nutrient-hint');
-    const fact = nearest && NUTRIENT_FACTS[nearest.textContent.toLowerCase()];
-    if (fact) {
-      hint.innerHTML = `<b>${fact[0]}</b> — ${fact[1]}`;
-      hint.classList.add('show');
-    } else {
-      hint.classList.remove('show');
+      const sp = document.createElement('span');
+      // Mix stray symbols between the words (kept as separate tokens so words stay whole)
+      sp.textContent = text.trim().split(' ').map(w => {
+        if (Math.random() > 0.6) return w;
+        let sym = '';
+        for (let k = 1 + Math.floor(Math.random() * 3); k > 0; k--)
+          sym += SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+        return Math.random() < 0.5 ? `${sym} ${w}` : `${w} ${sym}`;
+      }).join(' ') + ' ';
+      sp.style.color = GREYS[Math.floor(Math.random() * GREYS.length)];
+      half.appendChild(sp);
     }
-  });
+    flow.appendChild(half);
+    flow.appendChild(half.cloneNode(true));
+    setFlowSpeed();
+  }
+  // Constant drift speed (~16 px/s) however tall the content ends up
+  function setFlowSpeed() {
+    const h = flow.firstElementChild ? flow.firstElementChild.offsetHeight : 0;
+    if (h) flow.style.animationDuration = `${(h / 16).toFixed(1)}s`;
+  }
+  document.fonts?.ready.then(setFlowSpeed);
+
+  // QR drawn on a canvas with whole-pixel square modules — text glyphs (half-blocks) left
+  // seams / non-square cells that phone cameras often failed to read.
+  function makeQrCanvas(url) {
+    const qr = qrcode(0, 'M');
+    qr.addData(url); qr.make();
+    const n = qr.getModuleCount();
+    const dpr = window.devicePixelRatio || 1;
+    const m = Math.max(4, Math.round(6 * dpr));   // module size in device pixels (integer)
+    const quiet = 4;                               // quiet zone, in modules (QR spec)
+    const size = (n + quiet * 2) * m;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    c.style.width = c.style.height = `${size / dpr}px`;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, size, size);
+    g.fillStyle = '#000';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++)
+      if (qr.isDark(y, x)) g.fillRect((x + quiet) * m, (y + quiet) * m, m, m);
+    return c;
+  }
+
+  // Session: the QR opens mobile.html?s=<id>; the phone posts a photo there and we poll for it
+  const sid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => (b % 36).toString(36)).join('');
+  let uploadBusy = false;
+  async function pollPhoneUpload() {
+    const ph = document.getElementById('placeholder');
+    if (uploadBusy || document.hidden || !ph || ph.style.display === 'none') return;
+    try {
+      const r = await fetch(getBackendUrl(`/api/session?id=${sid}`), { cache: 'no-store' });
+      const { image } = await r.json();
+      if (!image) return;
+      uploadBusy = true;
+      const blob = await (await fetch(image)).blob();
+      await handleFile(new File([blob], 'phone-photo.jpg', { type: blob.type || 'image/jpeg' }));
+    } catch (e) { console.warn('phone upload poll:', e); }
+    finally { uploadBusy = false; }
+  }
+  (async () => {
+    let base = location.origin;
+    if (['localhost', '127.0.0.1'].includes(location.hostname)) {
+      // a phone can't reach "localhost" — point the QR at this machine's LAN address
+      try { base = (await (await fetch(getBackendUrl('/api/lan'))).json()).url || base; } catch (e) {}
+    }
+    const url = `${base}/mobile.html?s=${sid}`;
+    console.info('Scan to upload:', url);
+    try {
+      const c = makeQrCanvas(url);
+      c.className = 'ph-qr';
+      qrBox.replaceChildren(c);
+    } catch (e) { console.warn('QR failed:', e); }
+    setInterval(pollPhoneUpload, 2000);
+  })();
+  fillPlaceholder();
+  addEventListener('resize', () => { fillPlaceholder(); setFlowSpeed(); });
 }
 
 // ── Food Card ─────────────────────────────────────────────────────────────
@@ -3416,9 +3360,6 @@ function enterCardView() {
   document.getElementById('left-scroll-zone').classList.add('cv-out');
   document.querySelector('.right').classList.add('cv-out');
 
-  // Move retro ctrl into overlay (it's position:absolute so it appears bottom-center)
-  document.getElementById('card-view').appendChild(document.getElementById('retro-ctrl'));
-
   // Disable model auto-rotation — in card view model only moves on drag
   if (controls) controls.autoRotate = false;
 
@@ -3453,10 +3394,6 @@ function exitCardView(instant) {
     // Reset card transform so it's clean next time
     const card = document.getElementById('food-card');
     if (card) card.style.transform = '';
-
-    // Move retro ctrl back to char-panel
-    const ctrl = document.getElementById('retro-ctrl');
-    if (ctrl.parentElement !== charPanel) charPanel.appendChild(ctrl);
 
     // Restore panels
     document.getElementById('speech-display').classList.remove('cv-out');
@@ -4237,7 +4174,6 @@ function resetAll() {
   const sc = document.getElementById('shadow-canvas');
   sc.style.display = 'none';
   if (shadowCtx2D) { shadowCtx2D.clearRect(0, 0, sc.width, sc.height); shadowCtx2D = null; }
-  document.getElementById('file-input').value = '';
   clearErr(); hideResults();
 }
 </script>

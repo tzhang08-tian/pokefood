@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>upload a food</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1.2rem;
+    padding: 2rem; background: #fff; color: #000;
+    font-family: 'Ubuntu Condensed', 'Ubuntu', 'Helvetica Neue', Arial, sans-serif;
+    text-align: center;
+  }
+  h1 { font-size: 22px; font-weight: 400; letter-spacing: .06em; }
+  label.pick {
+    display: block; width: 100%; max-width: 320px; padding: 1.1rem;
+    border: 1px solid #000; font-size: 16px; letter-spacing: .1em;
+    text-transform: uppercase; cursor: pointer;
+  }
+  label.pick input { display: none; }
+  #preview { max-width: 100%; max-height: 40vh; display: none; border: 1px solid #000; }
+  #status { font-size: 15px; color: #444; min-height: 1.4em; }
+  #status.err { color: #b00020; }
+</style>
+</head>
+<body>
+  <h1>upload a food to generate your character</h1>
+  <label class="pick">choose / take photo<input type="file" id="file" accept="image/*"></label>
+  <img id="preview" alt="">
+  <div id="status"></div>
+
+<script>
+const sid = new URLSearchParams(location.search).get('s') || '';
+const statusEl = document.getElementById('status');
+const say = (t, err) => { statusEl.textContent = t; statusEl.className = err ? 'err' : ''; };
+if (!sid) say('This link is missing its session code — scan the QR code again.', true);
+
+// Downscale + re-encode so the upload stays well under the server's size limit
+function compress(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let dim = 1280, q = 0.85, out = '';
+      for (let i = 0; i < 6; i++) {
+        const k = Math.min(1, dim / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        out = c.toDataURL('image/jpeg', q);
+        if (out.length < 700000) break;
+        dim *= 0.8; q = Math.max(0.55, q - 0.08);
+      }
+      resolve(out);
+    };
+    img.onerror = () => reject(new Error('Could not read that image.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+document.getElementById('file').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f || !sid) return;
+  try {
+    say('sending…');
+    const image = await compress(f);
+    const p = document.getElementById('preview');
+    p.src = image; p.style.display = 'block';
+    const r = await fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: sid, image }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `upload failed (${r.status})`);
+    say('sent — look at your computer ✓');
+  } catch (err) {
+    say(err.message, true);
+  }
+});
+</script>
+</body>
+</html>
