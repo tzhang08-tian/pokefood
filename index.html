@@ -129,6 +129,15 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 #ph-flow > div {
   padding: 0 28px;           /* keep words inside the frame edges */
 }
+/* Loading mode: rows of "loading" sliding left / right */
+#ph-loading { position: absolute; inset: 0; display: none; }
+.ph-lrow { height: 33px; overflow: hidden; white-space: nowrap; }
+.ph-ltrack {
+  display: inline-block; white-space: pre;
+  animation-timing-function: linear; animation-iteration-count: infinite;
+}
+@keyframes phSlideL { from { transform: translateX(0); }    to { transform: translateX(-50%); } }
+@keyframes phSlideR { from { transform: translateX(-50%); } to { transform: translateX(0); } }
 @keyframes phFlow {
   to { transform: translateY(-50%); }
 }
@@ -147,20 +156,19 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   100% { color: hsl(360,45%,58%); }
 }
 
-/* ── Nutrient list — top-left, items accumulate and stay ── */
+/* ── Nutrient text — small thin black text filling the whole page background, behind the model ── */
+.char-panel { isolation: isolate; }
 #speech-display {
-  position: absolute;
-  top: 5rem; left: 1.6rem;
-  z-index: 20; pointer-events: none;
+  position: absolute; inset: 0;
+  z-index: -1; pointer-events: none;
   display: none;
-  width: 380px;
-  overflow: visible;
+  overflow: hidden;
+  padding: 0 28px;
+  font-family: 'Ubuntu Condensed', 'Ubuntu', sans-serif;
+  font-size: 12px; line-height: 1.65; font-weight: 400;
+  text-align: justify; color: #000;
 }
-#speech-inner {
-  transition: transform 0.18s ease-out;
-  will-change: transform;
-  transform-origin: left center;
-}
+#speech-inner { display: block; }
 #left-scroll-zone {
   position: absolute;
   top: 0; left: 0;
@@ -181,35 +189,16 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   }
 }
 
-.speech-item {
-  margin-bottom: 1.5rem;
-  animation: speechFloat 4s ease-in-out infinite;
-  will-change: transform;
+.speech-item, .speech-item-wrap { display: inline; }
+.speech-item-label, .speech-item-body {
+  display: inline;
+  font: inherit; letter-spacing: 0; text-transform: none;
+  color: #000 !important; margin: 0;
 }
-
-.speech-item-label {
-  font-family: 'Special Elite', 'Courier New', monospace;
-  font-size: 11px; font-weight: 400;
-  letter-spacing: .10em; text-transform: uppercase;
-  color: var(--txt-label, var(--gray-mid)); margin-bottom: .38rem;
-}
-
-.speech-item-body {
-  font-family: 'Special Elite', 'Courier New', monospace;
-  font-size: 17px; line-height: 1.75;
-  color: var(--txt-body, #111);
-}
-.speech-char {
-  display: inline-block;
-  animation: charFloat var(--cd, 2.5s) ease-in-out infinite var(--ca, 0s);
-  scale: var(--sq-x, 1) 1;
-  translate: var(--sq-tx, 0px) 0;
-  transform-origin: left center;
-}
-.speech-char.reading {
-  color: #e03020 !important;
-  -webkit-text-stroke: 0px transparent !important;
-}
+.speech-item-label { font-weight: 700; margin-right: .4em; }
+.speech-item-label::after { content: ':'; }
+.speech-char { display: inline; }
+.speech-char.reading { text-decoration: underline; }
 @keyframes charFloat {
   0%, 100% { transform: translate(0, 0); }
   50%       { transform: translate(var(--cx, 0px), var(--cy, -2px)); }
@@ -1066,7 +1055,7 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   <!-- Full-screen character panel -->
   <div class="char-panel">
     <div class="placeholder" id="placeholder">
-      <div id="placeholder-text"><div id="ph-flow"></div></div>
+      <div id="placeholder-text"><div id="ph-flow"></div><div id="ph-loading"></div></div>
       <div id="ph-qr"></div>
       <div id="retro-ctrl">
         <label>pixel <input type="range" id="r-pixel" min="0" max="16" step="1" value="0"></label>
@@ -2377,7 +2366,8 @@ function startAnimLoop() {
     }
 
     // ── Per-item squish & layout collision ───────────────────────────────────
-    if (!cardViewActive && mesh && camera && document.getElementById('speech-display')?.style.display !== 'none') {
+    // Nutrient text is now a static page background, so the squish / re-layout around the model is off.
+    if (false && !cardViewActive && mesh && camera && document.getElementById('speech-display')?.style.display !== 'none') {
       _msp.setFromMatrixPosition(mesh.matrixWorld).project(camera);
       const mSX = (_msp.x + 1) * 0.5 * window.innerWidth;
       const mSY = (-_msp.y + 1) * 0.5 * window.innerHeight;
@@ -2442,10 +2432,27 @@ function startAnimLoop() {
 }
 
 // ── Speech: each item gets its OWN element — fixes concurrent typewriter bug ──
+// Repeat the full narration after the live (typewriter) items until the page is covered
+function buildSpeechFill() {
+  const inner = document.getElementById('speech-inner');
+  if (!inner) return;
+  inner.querySelector('#speech-fill')?.remove();
+  const unit = speechList.map(it => {
+    const label = it.nutrient + (it.amount ? ' — ' + it.amount : '');
+    return `${label}: ${(it.text || '').replace(/\*\*([^*]+)\*\*/g, '$1')}`;
+  }).join('   ') + '   ';
+  if (!unit.trim()) return;
+  const need = (innerWidth * innerHeight) / 70;            // ≈ characters that fit at 12px
+  const fill = document.createElement('span');
+  fill.id = 'speech-fill';
+  fill.textContent = unit.repeat(Math.ceil(need / unit.length) + 1);
+  inner.appendChild(fill);
+}
+
 function startSpeech() {
   if (!speechList.length) return;
   document.getElementById('speech-display').style.display = 'block';
-  document.getElementById('left-scroll-zone').style.display = 'block';
+  buildSpeechFill();
   nextSpeech();
 }
 
@@ -2467,6 +2474,7 @@ function nextSpeech() {
 }
 
 function speechScrollToBottom() {
+  return;  // background text never scrolls
   const inner = document.getElementById('speech-inner');
   if (!inner) return;
   const avail = window.innerHeight - (5 * parseFloat(getComputedStyle(document.documentElement).fontSize));
@@ -2509,7 +2517,9 @@ function appendSpeechItem(item) {
   wrapper.appendChild(label);
   wrapper.appendChild(body);
   outerWrap.appendChild(wrapper);
-  container.appendChild(outerWrap);
+  const fillEl = container.querySelector('#speech-fill');
+  container.insertBefore(outerWrap, fillEl);
+  container.insertBefore(document.createTextNode(' '), fillEl);
   speechScrollToBottom();
 
   // Pre-create ALL body spans immediately (opacity:0) so boundary events can
@@ -2836,9 +2846,40 @@ function speakItem(text, onDone, bodyEl) {
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────
-// Background text no longer animates position, so loading spinner is a no-op.
-function startLoadingSpinner() {}
-function stopLoadingSpinner() {}
+// ── Loading mode: the background text becomes "loading", every row sliding
+// left or right at random. ────────────────────────────────────────────────
+function startLoadingSpinner() {
+  const flow = document.getElementById('ph-flow');
+  const box  = document.getElementById('ph-loading');
+  if (!flow || !box) return;
+  const GREYS = ['#000000', '#222222', '#444444', '#666666', '#888888', '#aaaaaa', '#cccccc'];
+  const rowH  = 22 * 1.5;                              // matches the background text line-height
+  const rows  = Math.ceil(innerHeight / rowH) + 1;
+  const unit  = 'loading ';
+  const half  = unit.repeat(Math.ceil(innerWidth / 70) + 6);  // wider than the screen
+  box.textContent = '';
+  for (let i = 0; i < rows; i++) {
+    const row = document.createElement('div');
+    row.className = 'ph-lrow';
+    const track = document.createElement('div');
+    track.className = 'ph-ltrack';
+    track.style.color = GREYS[Math.floor(Math.random() * GREYS.length)];
+    track.style.animationName = Math.random() < 0.5 ? 'phSlideL' : 'phSlideR';   // left or right
+    track.style.animationDuration = `${(12 + Math.random() * 28).toFixed(1)}s`;   // random speed
+    track.style.animationDelay = `-${(Math.random() * 30).toFixed(1)}s`;          // random start offset
+    track.textContent = half + half;
+    row.appendChild(track);
+    box.appendChild(row);
+  }
+  flow.style.display = 'none';
+  box.style.display = 'block';
+}
+function stopLoadingSpinner() {
+  const flow = document.getElementById('ph-flow');
+  const box  = document.getElementById('ph-loading');
+  if (box) { box.style.display = 'none'; box.textContent = ''; }
+  if (flow) flow.style.display = '';
+}
 
 function showProgress(on) {
   document.getElementById('progress').style.display = on ? 'block' : 'none';
