@@ -18,6 +18,10 @@
       "use": "@vercel/static"
     },
     {
+      "src": "test/**/*",
+      "use": "@vercel/static"
+    },
+    {
       "src": "fonts/**/*",
       "use": "@vercel/static"
     },
