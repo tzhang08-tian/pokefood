@@ -14,7 +14,7 @@
 html, body { height: 100%; overflow: hidden; }
 
 :root {
-  --bg:        #ffffff;
+  --bg:        #0000AA;   /* classic Windows blue-screen blue */
   --border:    #d8d8d8;
   --border-hi: #b8b8b8;
   --gray:      #999;
@@ -129,15 +129,14 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 #ph-flow > div {
   padding: 0 28px;           /* keep words inside the frame edges */
 }
-/* Loading mode: rows of "loading" sliding left / right */
-#ph-loading { position: absolute; inset: 0; display: none; }
-.ph-lrow { height: 33px; overflow: hidden; white-space: nowrap; }
-.ph-ltrack {
-  display: inline-block; white-space: pre;
-  animation-timing-function: linear; animation-iteration-count: infinite;
+/* Loading mode: scrolling source code */
+#ph-loading {
+  position: absolute; inset: 0; display: none; overflow: hidden;
+  padding: 14px 28px;
+  font: 400 12px/1.5 Menlo, Consolas, 'DejaVu Sans Mono', 'Courier New', monospace;
+  color: #fff; white-space: pre; tab-size: 2;
 }
-@keyframes phSlideL { from { transform: translateX(0); }    to { transform: translateX(-50%); } }
-@keyframes phSlideR { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+#ph-loading .c { color: #9fb0ff; }
 @keyframes phFlow {
   to { transform: translateY(-50%); }
 }
@@ -156,23 +155,23 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   100% { color: hsl(360,45%,58%); }
 }
 
-/* ── Nutrient text — small thin black text filling the whole page background, behind the model ── */
+/* ── Nutrient text — small code-style stream running down the left side, behind the model ── */
 .char-panel { isolation: isolate; }
 #speech-display {
-  position: absolute; inset: 0;
+  position: absolute; top: 0; left: 0; bottom: 0; width: 340px;
   z-index: -1; pointer-events: none;
   display: none;
   overflow: hidden;
-  padding: 0 28px;
-  font-family: 'Ubuntu Condensed', 'Ubuntu', sans-serif;
-  font-size: 12px; line-height: 1.65; font-weight: 400;
-  text-align: justify; color: #000;
+  padding: 14px 20px;
+  font: 400 10px/1.55 Menlo, Consolas, 'DejaVu Sans Mono', 'Courier New', monospace;
+  color: #fff; text-align: left; white-space: normal; word-break: break-all;
 }
 #speech-inner { display: block; }
+#speech-stream div { white-space: pre; overflow: hidden; opacity: .85; }
 #left-scroll-zone {
   position: absolute;
   top: 0; left: 0;
-  width: 460px; height: 100%;
+  width: 340px; height: 100%;
   z-index: 19;
   display: none;
   cursor: ns-resize;
@@ -189,13 +188,14 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   }
 }
 
-.speech-item, .speech-item-wrap { display: inline; }
+.speech-item, .speech-item-wrap { display: block; }
+.speech-item-wrap { margin-bottom: .8em; }
 .speech-item-label, .speech-item-body {
   display: inline;
   font: inherit; letter-spacing: 0; text-transform: none;
-  color: #000 !important; margin: 0;
+  color: #fff !important; margin: 0;
 }
-.speech-item-label { font-weight: 700; margin-right: .4em; }
+.speech-item-label { font-weight: 700; margin-right: .4em; text-transform: uppercase; }
 .speech-item-label::after { content: ':'; }
 .speech-char { display: inline; }
 .speech-char.reading { text-decoration: underline; }
@@ -233,9 +233,68 @@ input[type=password]:focus { border-color: var(--gray-mid); }
              phFloat var(--pf-d, 3.5s) ease-in-out infinite var(--pf-a, 0s);
 }
 
+/* Blue-screen theme: light text on the deep blue background */
+.right #food-name, .right #personality { color: #fff; }
+.right .step { color: rgba(255,255,255,.55); }
+.right .step.active { color: #fff; }
+.right .step.done   { color: rgba(255,255,255,.8); }
+.right .dot { background: rgba(255,255,255,.4); }
+.right .step.active .dot { background: #fff; }
+.right .step.done   .dot { background: rgba(255,255,255,.8); }
+.right button.ghost { background: transparent; color: #fff; border: 1px solid #fff; }
+.right button.ghost:hover { background: rgba(255,255,255,.15); }
+#hint-3d { color: rgba(255,255,255,.75); }
+
+/* ── Model-view control console: a grey arc at the bottom with four knobs (pixel/levels/crystal/blur) ── */
+#hint-3d { bottom: 230px !important; }
+#model-console {
+  position: absolute; left: 50%; bottom: 0; width: 700px; height: 210px; margin-left: -350px;
+  transform-origin: 50% 100%; transform: scale(var(--mcs, 1));
+  display: none; z-index: 15; pointer-events: none;
+}
+#mc-svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; filter: drop-shadow(0 -4px 10px rgba(0,0,0,.35)); }
+#mc-svg path { pointer-events: auto; }
+.mc-knob {
+  position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px;
+  pointer-events: auto; touch-action: none; cursor: ns-resize; user-select: none;
+}
+/* recessed bezel with tick marks */
+.mc-bezel {
+  position: absolute; inset: 0; border-radius: 50%;
+  background:
+    repeating-conic-gradient(from -135deg, rgba(255,255,255,.55) 0 1.2deg, transparent 1.2deg 27deg) ,
+    radial-gradient(circle at 50% 60%, #3d3d3d, #6b6b6b 70%, #8f8f8f);
+  -webkit-mask: radial-gradient(circle, #000 0 98%, transparent 100%);
+  box-shadow: inset 0 3px 6px rgba(0,0,0,.75), 0 1.5px 0 rgba(255,255,255,.55);
+  clip-path: circle(50%);
+}
+/* the cap — lit from the top-left to read as a raised, rotating button */
+.mc-cap {
+  position: absolute; inset: 13px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, #fff 0, #e6e6e6 18%, #b5b5b5 52%, #6e6e6e 100%);
+  box-shadow:
+    0 5px 0 #4a4a4a,
+    0 8px 10px rgba(0,0,0,.55),
+    inset 0 -4px 6px rgba(0,0,0,.35),
+    inset 0 3px 4px rgba(255,255,255,.9);
+  transition: transform .06s, box-shadow .06s;
+}
+.mc-knob.held .mc-cap { transform: translateY(3px); box-shadow: 0 2px 0 #4a4a4a, 0 3px 5px rgba(0,0,0,.5), inset 0 -4px 6px rgba(0,0,0,.35), inset 0 3px 4px rgba(255,255,255,.9); }
+.mc-ptr { position: absolute; inset: 0; transform: rotate(var(--ang, -135deg)); }
+.mc-ptr::after {
+  content: ''; position: absolute; left: 50%; top: 4px; width: 3px; height: 13px; margin-left: -1.5px;
+  background: #1a1a1a; border-radius: 2px; box-shadow: 0 1px 0 rgba(255,255,255,.6);
+}
+.mc-label {
+  position: absolute; left: 50%; top: 76px; transform: translateX(-50%); white-space: nowrap;
+  font: 400 11px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .14em; text-transform: uppercase;
+  color: #2a2a2a; text-shadow: 0 1px 0 rgba(255,255,255,.7);
+}
+
 /* TEST MODE button */
 #test-btn {
-  position: fixed; top: 14px; right: 14px; z-index: 950;
+  position: fixed; top: 14px; left: 14px; z-index: 950;
   padding: .45rem .9rem; cursor: pointer;
   background: #fff; color: #000; border: 1px solid #000;
   font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .08em; text-transform: uppercase;
@@ -294,7 +353,7 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 
 /* Right-side text elements */
 #error {
-  display: none; position: fixed; top: 58px; right: 14px; z-index: 950;
+  display: none; position: fixed; top: 58px; left: 14px; z-index: 950;
   max-width: 360px; padding: .6rem .9rem;
   background: #fff; border: 1px solid #c00; color: #c00;
   font: 400 14px/1.45 'Ubuntu Condensed', 'Ubuntu', sans-serif; text-align: left;
@@ -309,7 +368,7 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   text-align: right;
 }
 
-#progress { display: none; width: 100%; }
+#progress { display: none !important; width: 100%; }   /* step list removed — the code screen replaces it */
 .step {
   display: flex; align-items: center; justify-content: flex-end;
   gap: .5rem; padding: .2rem 0; font-size: 9px;
@@ -1091,6 +1150,18 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
     <!-- Nutrient items accumulate here, top-left -->
     <div id="speech-display"><div id="speech-inner"></div></div>
 
+    <div id="model-console">
+      <svg id="mc-svg" viewBox="0 0 700 210" width="700" height="210" aria-hidden="true">
+        <defs>
+          <linearGradient id="mc-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#bcbcbc"/><stop offset=".45" stop-color="#8e8e8e"/><stop offset="1" stop-color="#5a5a5a"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,210 L0,200 A620,620 0 0 1 700,200 L700,210 Z" fill="url(#mc-fill)" stroke="#fff" stroke-width="3"/>
+        <path d="M9,210 L9,200 A611,611 0 0 1 691,200 L691,210" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+        <path d="M14,210 L14,200 A606,606 0 0 1 686,200 L686,210" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1.5"/>
+      </svg>
+    </div>
     <div id="hint-3d">drag to rotate &nbsp;·&nbsp; scroll to zoom</div>
   </div>
 
@@ -1319,26 +1390,95 @@ let cvPickCanvas = null;             // 1×1 offscreen canvas for pixel sampling
 // ── Event wiring ──────────────────────────────────────────────────────────
 document.getElementById('reset-btn').addEventListener('click', resetAll);
 
-// Wheel-scroll for the nutrient list.
-// #left-scroll-zone sits above the canvas on the left, so wheel events here
-// never reach OrbitControls (which lives on the canvas below).
+// Wheel-scroll for the left code column — only active once the narration has finished
+// (the zone is hidden until then, so before that the wheel just zooms the 3D model).
 document.getElementById('left-scroll-zone').addEventListener('wheel', e => {
-  e.preventDefault(); // also stops page-level scroll
-  const inner = document.getElementById('speech-inner');
-  if (!inner) return;
-  const rootFs = parseFloat(getComputedStyle(document.documentElement).fontSize);
-  const avail  = window.innerHeight - 5 * rootFs;
-  const maxOff = Math.max(0, inner.offsetHeight - avail);
-  speechScrollOff = Math.max(0, Math.min(speechScrollOff + e.deltaY * 0.6, maxOff));
-  applyInnerTransform(inner);
+  e.preventDefault();
+  const disp = document.getElementById('speech-display');
+  if (disp) disp.scrollTop += e.deltaY;       // plain vertical scrolling, not paging
 }, { passive: false });
+
+// ── Model-view console: four knobs drive the 3D model's retro filter ───────────
+// Knob value ranges: [min, max]; the shader's own state is mirrored back to the knobs so they
+// turn by themselves during the auto-randomize, and the auto-randomize pauses while one is held.
+const MC_KNOBS = [
+  { id: 'pixel',   label: 'pixel',   min: 2, max: 16 },
+  { id: 'levels',  label: 'levels',  min: 2, max: 8  },
+  { id: 'crystal', label: 'crystal', min: 0, max: 60 },
+  { id: 'blur',    label: 'blur',    min: 0, max: 20 },
+];
+const mcHeld = new Set();
+const mcEls = {};
+function mcSet(id, v) {
+  if (id === 'pixel')  pixelCur = pixelTarget = v;
+  if (id === 'levels') levelsCur = levelsTarget = v;
+  if (id === 'blur')   blurCur = blurTarget = v;
+  if (id === 'crystal') {
+    if (v < 1) crystalTarget = crystalCur = 0;
+    else { crystalSizeCur = crystalSizeTarget = v; crystalTarget = crystalCur = 1; }
+  }
+}
+function mcCurrent(id) {
+  if (id === 'pixel')  return Math.max(2, Math.min(16, pixelCur));
+  if (id === 'levels') return Math.max(2, Math.min(8, levelsCur));
+  if (id === 'blur')   return Math.max(0, Math.min(20, blurCur));
+  return crystalCur < 0.05 ? 0 : Math.max(2, Math.min(60, crystalSizeCur));
+}
+function mcRender(k, v) {
+  const f = (v - k.min) / (k.max - k.min);
+  mcEls[k.id].style.setProperty('--ang', `${(-135 + 270 * Math.max(0, Math.min(1, f))).toFixed(1)}deg`);
+}
+function syncConsoleKnobs() {
+  MC_KNOBS.forEach(k => { if (!mcHeld.has(k.id)) mcRender(k, mcCurrent(k.id)); });
+}
+(function buildConsole() {
+  const box = document.getElementById('model-console');
+  const R = 620, CX = 350, BASE = 200;
+  const edgeY = x => BASE - (Math.sqrt(R * R - (x - CX) ** 2) - Math.sqrt(R * R - CX * CX));
+  [175, 295, 405, 525].forEach((x, i) => {
+    const k = MC_KNOBS[i];
+    const el = document.createElement('div');
+    el.className = 'mc-knob';
+    el.style.left = x + 'px';
+    el.style.top  = (edgeY(x) + 32) + 'px';
+    el.innerHTML = '<div class="mc-bezel"></div><div class="mc-cap"><div class="mc-ptr"></div></div>' +
+                   `<div class="mc-label">${k.label}</div>`;
+    box.appendChild(el);
+    mcEls[k.id] = el;
+    let startY = 0, startV = 0;
+    el.addEventListener('pointerdown', e => {
+      el.setPointerCapture(e.pointerId);
+      mcHeld.add(k.id); el.classList.add('held');
+      startY = e.clientY; startV = mcCurrent(k.id);
+      e.preventDefault();
+    });
+    el.addEventListener('pointermove', e => {
+      if (!mcHeld.has(k.id)) return;
+      const v = Math.max(k.min, Math.min(k.max, startV + (startY - e.clientY) * (k.max - k.min) / 160));
+      const q = k.id === 'levels' || k.id === 'crystal' || k.id === 'pixel' ? Math.round(v) : v;
+      mcSet(k.id, q); mcRender(k, q);
+    });
+    const release = () => { mcHeld.delete(k.id); el.classList.remove('held'); };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('wheel', e => {
+      e.preventDefault();
+      const step = (k.max - k.min) / 40;
+      const v = Math.max(k.min, Math.min(k.max, mcCurrent(k.id) - Math.sign(e.deltaY) * step));
+      mcSet(k.id, v); mcRender(k, v);
+    }, { passive: false });
+  });
+  const fit = () => box.style.setProperty('--mcs', Math.min(1, (innerWidth - 16) / 700).toFixed(3));
+  fit(); addEventListener('resize', fit);
+})();
+function showModelConsole(on) { document.getElementById('model-console').style.display = on ? 'block' : 'none'; }
 
 // Auto-randomize retro values on a random 3–10 s interval with smooth slide.
 // ~18% passthrough | ~16% color halftone | ~20% retro pixel | ~20% crystallize | ~26% blur
 function scheduleRetroRandomize() {
   const delay = (Math.random() * 7 + 3) * 1000;
   setTimeout(() => {
-    if (cardViewActive) { scheduleRetroRandomize(); return; }
+    if (cardViewActive || mcHeld.size) { scheduleRetroRandomize(); return; }
     const r = Math.random();
     if (r < 0.18) {
       // Passthrough: shader becomes identity
@@ -1394,6 +1534,7 @@ function updateRetroEffects() {
     retroPass.uniforms.crystalSize.value = Math.max(2, crystalSizeCur);
     retroPass.uniforms.blurAmount.value  = blurCur;
   }
+  syncConsoleKnobs();
 
 }
 
@@ -1490,6 +1631,7 @@ async function handleFile(file) {
       analyzeFood(b64, mimeType),
       facePromise.catch(e => { console.warn('face load failed:', e); return null; }),
     ]);
+    loadingCodeInject(data);
     faceFeatures = features;
     setStep(1, 'done');
 
@@ -1575,7 +1717,31 @@ function getBackendUrl(path) {
   return path;
 }
 
+// ── Local preview without the API ─────────────────────────────────────────
+// On localhost, analyzeFood returns a saved real result (test/sample-analysis.json, captured
+// from the deployed /api/analyze) instead of calling the API, so layout / font / background /
+// display changes can be previewed fast. The deployed site always uses the real API.
+// Add ?api to the local URL to force the real API, ?mock to force the saved result anywhere.
+const MOCK_DELAY_MS = 4000;   // fake "thinking" time so the loading screen can be previewed
+const USE_MOCK_API = (() => {
+  const q = new URLSearchParams(location.search);
+  if (q.has('api'))  return false;
+  if (q.has('mock')) return true;
+  return ['localhost', '127.0.0.1'].includes(location.hostname);
+})();
+
 async function analyzeFood(b64, mime) {
+  if (USE_MOCK_API) {
+    console.info('[mock] using test/sample-analysis.json instead of /api/analyze');
+    const [data] = await Promise.all([
+      fetch('test/sample-analysis.json').then(r => {
+        if (!r.ok) throw new Error('Missing test/sample-analysis.json');
+        return r.json();
+      }),
+      new Promise(res => setTimeout(res, MOCK_DELAY_MS)),
+    ]);
+    return data;
+  }
   const response = await fetch(getBackendUrl('/api/analyze'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1749,6 +1915,7 @@ async function buildThreeScene(img, data) {
   currentFaceData = data;
   document.getElementById('face-canvas').style.display = 'none';
   document.getElementById('placeholder').style.display = 'none';
+  showModelConsole(true);
   const hint = document.getElementById('hint-3d');
   hint.classList.add('show');
   setTimeout(() => hint.classList.remove('show'), 3500);
@@ -2449,21 +2616,54 @@ function startAnimLoop() {
 }
 
 // ── Speech: each item gets its OWN element — fixes concurrent typewriter bug ──
-// Repeat the full narration after the live (typewriter) items until the page is covered
+// Endless code-like stream under the typed items: the narration chopped into short lines,
+// each with a hex address and a few garbled characters, scrolling up like a running log.
+let _streamTimer = null;
+function stopSpeechStream() { clearInterval(_streamTimer); _streamTimer = null; }
+// Narration finished: stop generating and let the user scroll the finished code by hovering it
+function finishSpeechStream() {
+  stopSpeechStream();
+  const disp = document.getElementById('speech-display');
+  if (!disp || disp.style.display === 'none') return;
+  document.getElementById('left-scroll-zone').style.display = 'block';
+}
 function buildSpeechFill() {
   const inner = document.getElementById('speech-inner');
-  if (!inner) return;
-  inner.querySelector('#speech-fill')?.remove();
-  const unit = speechList.map(it => {
-    const label = it.nutrient + (it.amount ? ' — ' + it.amount : '');
-    return `${label}: ${(it.text || '').replace(/\*\*([^*]+)\*\*/g, '$1')}`;
-  }).join('   ') + '   ';
-  if (!unit.trim()) return;
-  const need = (innerWidth * innerHeight) / 70;            // ≈ characters that fit at 12px
-  const fill = document.createElement('span');
-  fill.id = 'speech-fill';
-  fill.textContent = unit.repeat(Math.ceil(need / unit.length) + 1);
-  inner.appendChild(fill);
+  const disp  = document.getElementById('speech-display');
+  if (!inner || !disp) return;
+  stopSpeechStream();
+  inner.querySelector('#speech-stream')?.remove();
+  const text = speechList.map(it => {
+    const label = it.nutrient + (it.amount ? ' ' + it.amount : '');
+    return `${label} ${(it.text || '').replace(/\*\*([^*]+)\*\*/g, '$1')}`;
+  }).join(' ').replace(/\s+/g, ' ').trim();
+  if (!text) return;
+  const stream = document.createElement('div');
+  stream.id = 'speech-stream';
+  inner.appendChild(stream);
+
+  const JUNK = '#$%&*+=<>?/\\|~^@!;:_01{}[]';
+  const rj = () => JUNK[Math.floor(Math.random() * JUNK.length)];
+  const garble = str => str.replace(/\S/g, c => (Math.random() < 0.07 ? rj() : c));
+  const COLS = 40;
+  let pos = 0, addr = Math.floor(Math.random() * 0xff00);
+  _streamTimer = setInterval(() => {
+    let body;
+    if (Math.random() < 0.14) {                        // pure noise line
+      body = Array.from({ length: 12 + Math.floor(Math.random() * 28) }, () => (Math.random() < 0.3 ? ' ' : rj())).join('');
+    } else {
+      let end = Math.min(text.length, pos + COLS);
+      if (end < text.length) { const sp = text.lastIndexOf(' ', end); if (sp > pos + 12) end = sp; }
+      body = garble(text.slice(pos, end).trim());
+      pos = end >= text.length ? 0 : end;
+    }
+    addr = (addr + 1 + Math.floor(Math.random() * 6)) & 0xffff;
+    const d = document.createElement('div');
+    d.textContent = `${addr.toString(16).toUpperCase().padStart(4, '0')}  ${body}`;
+    stream.appendChild(d);
+    while (stream.childElementCount > 300) stream.firstElementChild.remove();
+    disp.scrollTop = disp.scrollHeight;                // keep the newest line at the bottom
+  }, 90);
 }
 
 function startSpeech() {
@@ -2484,6 +2684,7 @@ function nextSpeech() {
     fired = true;
     speechIdx++;
     if (speechIdx < speechList.length) speechTimer = setTimeout(nextSpeech, 600);
+    else speechTimer = setTimeout(finishSpeechStream, 1500);   // narration done → stop writing code
   };
 
   speakItem(plain, advance, bodyEl);
@@ -2534,7 +2735,7 @@ function appendSpeechItem(item) {
   wrapper.appendChild(label);
   wrapper.appendChild(body);
   outerWrap.appendChild(wrapper);
-  const fillEl = container.querySelector('#speech-fill');
+  const fillEl = container.querySelector('#speech-stream');
   container.insertBefore(outerWrap, fillEl);
   container.insertBefore(document.createTextNode(' '), fillEl);
   speechScrollToBottom();
@@ -2863,41 +3064,65 @@ function speakItem(text, onDone, bodyEl) {
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────
-// ── Loading mode: the background text becomes "loading", every row sliding
-// left or right at random. ────────────────────────────────────────────────
+// ── Loading mode: the screen streams the generator's source code, scrolling down like a
+// terminal. API-related lines are never shown; once the analysis arrives its result is
+// printed too (see loadingCodeInject). ───────────────────────────────────────────────
+const HIDE_CODE = /api|fetch\s*\(|anthropic|authorization|apikey|userid|user_id|headers|content-type|b64|mimetype|\.env|token|secret|password/i;
+let _codeLines = null, _codeQueue = [], _codeIdx = 0, _codeTimer = null;
+
+function loadingCodeLines() {
+  if (_codeLines) return _codeLines;
+  const mod = [...document.scripts].filter(sc => sc.type === 'module').pop();
+  const src = mod ? mod.textContent : '';
+  const a = src.indexOf('// Grass blades (fiber)');
+  const b = src.indexOf('// ── Shadow — drawn on a plain 2D canvas');
+  const section = (a >= 0 && b > a) ? src.slice(a, b) : src;
+  _codeLines = section.split('\n').map(l => l.replace(/\s+$/, '')).filter(l => !HIDE_CODE.test(l));
+  return _codeLines;
+}
+
+// Print the analysis result (minus anything API-related) at the head of the stream
+function loadingCodeInject(data) {
+  if (!data || !_codeTimer) return;
+  const copy = { ...data };
+  if (Array.isArray(copy.foodPolygon)) copy.foodPolygon = `[ /* ${copy.foodPolygon.length} points */ ]`;
+  const json = JSON.stringify(copy, null, 2).replace(/"\[ \/\* (\d+ points) \*\/ \]"/, '[ /* $1 */ ]');
+  _codeQueue.push('', '// ── generated character data ──', `const food = ${json};`, '');
+}
+
 function startLoadingSpinner() {
   const flow = document.getElementById('ph-flow');
   const box  = document.getElementById('ph-loading');
   if (!flow || !box) return;
-  const GREYS = ['#000000', '#222222', '#444444', '#666666', '#888888', '#aaaaaa', '#cccccc'];
-  const rowH  = 22 * 1.5;                              // matches the background text line-height
-  const rows  = Math.ceil(innerHeight / rowH) + 1;
-  const unit  = 'loading ';
-  const half  = unit.repeat(Math.ceil(innerWidth / 70) + 6);  // wider than the screen
+  clearInterval(_codeTimer);
+  const lines = loadingCodeLines();
+  _codeQueue = []; _codeIdx = 0;
   box.textContent = '';
-  for (let i = 0; i < rows; i++) {
-    const row = document.createElement('div');
-    row.className = 'ph-lrow';
-    const track = document.createElement('div');
-    track.className = 'ph-ltrack';
-    track.style.color = GREYS[Math.floor(Math.random() * GREYS.length)];
-    track.style.animationName = Math.random() < 0.5 ? 'phSlideL' : 'phSlideR';   // left or right
-    track.style.animationDuration = `${(12 + Math.random() * 28).toFixed(1)}s`;   // random speed
-    track.style.animationDelay = `-${(Math.random() * 30).toFixed(1)}s`;          // random start offset
-    track.textContent = half + half;
-    row.appendChild(track);
-    box.appendChild(row);
-  }
   flow.style.display = 'none';
   box.style.display = 'block';
+  _codeTimer = setInterval(() => {
+    const frag = document.createDocumentFragment();
+    for (let n = 1 + Math.floor(Math.random() * 3); n > 0 && lines.length; n--) {
+      const line = _codeQueue.length ? _codeQueue.shift() : lines[_codeIdx++ % lines.length];
+      for (const part of line.split('\n')) {
+        const d = document.createElement('div');
+        d.textContent = part || '\u00a0';
+        if (/^\s*\/\//.test(part)) d.className = 'c';
+        frag.appendChild(d);
+      }
+    }
+    box.appendChild(frag);
+    while (box.childElementCount > 400) box.firstElementChild.remove();
+    box.scrollTop = box.scrollHeight;                       // follow the newest line, browser-style
+  }, 45);
 }
 function stopLoadingSpinner() {
+  clearInterval(_codeTimer); _codeTimer = null;
   const flow = document.getElementById('ph-flow');
   const box  = document.getElementById('ph-loading');
   if (box) { box.style.display = 'none'; box.textContent = ''; }
   if (flow) flow.style.display = '';
 }
-
 function showProgress(on) {
   document.getElementById('progress').style.display = on ? 'block' : 'none';
   if (on) {
@@ -2922,6 +3147,7 @@ function showResults(data) {
   document.getElementById('card-btn').classList.add('cb-show');
 }
 function hideResults() {
+  stopSpeechStream();
   currentData = null;
   document.getElementById('card-btn').classList.remove('cb-show');
   ['food-name','personality','reset-btn'].forEach(id => {
@@ -3028,8 +3254,8 @@ function makeNutrientAscii() {
       return mesh(geo);
     },
   };
-  // On-white-background colours matching the 3D models (protein is white → light grey)
-  const COLOR = { fat: '#d9a400', fiber: '#3fae4a', vitamin: '#e0191f', carbs: '#2f6fd6', protein: '#8c8c8c', sugar: '#e8742a' };
+  // Colours matching the 3D models, brightened for the dark-blue background
+  const COLOR = { fat: '#ffd21a', fiber: '#55ee66', vitamin: '#ff5560', carbs: '#6ec6ff', protein: '#ffffff', sugar: '#ffa040' };
   const UPRIGHT = { fiber: true, protein: true };
   const FLAT = { vitamin: true, carbs: true };   // flat shapes: keep them mostly face-on so the outline reads
 
@@ -3065,8 +3291,8 @@ function makeNutrientAscii() {
       cells.forEach((cell, i) => {
         if (cell.cover < 0.3) art += ' ';
         else {
-          const dark = 1 - (cell.lum - lo) / span;           // 0 = lit, 1 = shadow
-          art += RAMP[1 + Math.min(RAMP.length - 2, Math.floor(dark * (RAMP.length - 1)))];
+          const lit = (cell.lum - lo) / span;                // light-on-dark: lit areas get denser glyphs
+          art += RAMP[1 + Math.min(RAMP.length - 2, Math.floor(lit * (RAMP.length - 1)))];
         }
         if (i % COLS === COLS - 1) art += '\n';
       });
@@ -3083,7 +3309,7 @@ function makeNutrientAscii() {
 {
   const text = 'upload a food to generate your character ';
   // Black / grey tones only (no white — the page background is white)
-  const GREYS = ['#000000', '#222222', '#444444', '#666666', '#888888', '#aaaaaa', '#cccccc'];
+  const GREYS = ['#ffffff', '#f0f0f0', '#dcdcdc', '#c8c8c8', '#b4b4b4', '#a0a0a0', '#8c8c8c'];
   const SYMBOLS = '()()[]{}<>%%$#@&*+=/\\|~^!?;:_-';
   const SPRITES = makeNutrientAscii();
   const qrBox = document.getElementById('ph-qr');
@@ -3137,7 +3363,7 @@ function makeNutrientAscii() {
     qr.addData(url); qr.make();
     const n = qr.getModuleCount();
     const dpr = window.devicePixelRatio || 1;
-    const m = Math.max(4, Math.round(6 * dpr));   // module size in device pixels (integer)
+    const m = Math.max(2, Math.round(3 * dpr));   // module size in device pixels (integer): 3 CSS px per module
     const quiet = 4;                               // quiet zone, in modules (QR spec)
     const size = (n + quiet * 2) * m;
     const c = document.createElement('canvas');
@@ -4247,6 +4473,7 @@ function resetAll() {
   document.getElementById('three-mount').style.display = 'none';
   stopLoadingSpinner();
   document.getElementById('placeholder').style.display = 'flex';
+  showModelConsole(false);
   const sc = document.getElementById('shadow-canvas');
   sc.style.display = 'none';
   if (shadowCtx2D) { shadowCtx2D.clearRect(0, 0, sc.width, sc.height); shadowCtx2D = null; }

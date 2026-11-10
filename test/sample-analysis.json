@@ -1,0 +1,189 @@
+{
+  "name": "Shrimp Pasta Bento with Arugula and Marinated Egg",
+  "sharpness": 6,
+  "dominantMacro": "protein",
+  "foodCategory": "carb",
+  "colorProfile": "warm",
+  "personality": "I'm a sophisticated multitasker who brings together land and sea with effortless elegance. Balanced and refined, I believe every bite should tell a story of harmony and wholesome goodness.",
+  "faceX": 0.5,
+  "faceY": 0.55,
+  "faceScale": 0.65,
+  "nutrients": {
+    "sugar": 3,
+    "fat": 12,
+    "protein": 28,
+    "carbs": 45,
+    "fiber": 3,
+    "potassium": 420,
+    "magnesium": 55,
+    "calcium": 85,
+    "vitaminC": 12
+  },
+  "speeches": [
+    {
+      "nutrient": "Protein",
+      "amount": "28g",
+      "text": "With **28g of protein** flowing through me, I'm basically your personal muscle architect! Those gorgeous shrimp and silky egg team up to rebuild you stronger after every workout."
+    },
+    {
+      "nutrient": "Carbs",
+      "amount": "45g",
+      "text": "My **45g of carbs** from these golden noodles are your premium fuel tank. I'll keep your brain sharp and your energy steady all afternoon long."
+    },
+    {
+      "nutrient": "Fat",
+      "amount": "12g",
+      "text": "I carry **12g of healthy fat** that helps your body absorb all the good stuff. Think of me as your nutrient delivery service with style."
+    },
+    {
+      "nutrient": "Potassium",
+      "amount": "420mg",
+      "text": "My **420mg of potassium** keeps your heart rhythm smooth like jazz. Those shrimp aren't just pretty—they're working overtime for your muscles."
+    },
+    {
+      "nutrient": "Fiber",
+      "amount": "3g",
+      "text": "That peppery arugula gives me **3g of fiber** to keep things moving along nicely. Greens aren't just garnish, darling—they're essential."
+    },
+    {
+      "nutrient": "Vitamin C",
+      "amount": "12mg",
+      "text": "The arugula sneaks in **12mg of vitamin C** to boost your immune system. I'm full of little surprises like that!"
+    },
+    {
+      "nutrient": "Calcium",
+      "amount": "85mg",
+      "text": "With **85mg of calcium** from my leafy greens and egg, I'm quietly strengthening your bones while you enjoy every delicious bite."
+    }
+  ],
+  "foodPolygon": [
+    [
+      0.12,
+      0.08
+    ],
+    [
+      0.18,
+      0.06
+    ],
+    [
+      0.28,
+      0.05
+    ],
+    [
+      0.42,
+      0.05
+    ],
+    [
+      0.58,
+      0.05
+    ],
+    [
+      0.72,
+      0.06
+    ],
+    [
+      0.82,
+      0.08
+    ],
+    [
+      0.88,
+      0.12
+    ],
+    [
+      0.92,
+      0.18
+    ],
+    [
+      0.94,
+      0.28
+    ],
+    [
+      0.95,
+      0.38
+    ],
+    [
+      0.95,
+      0.5
+    ],
+    [
+      0.95,
+      0.62
+    ],
+    [
+      0.94,
+      0.72
+    ],
+    [
+      0.92,
+      0.8
+    ],
+    [
+      0.88,
+      0.86
+    ],
+    [
+      0.82,
+      0.9
+    ],
+    [
+      0.72,
+      0.93
+    ],
+    [
+      0.58,
+      0.95
+    ],
+    [
+      0.42,
+      0.95
+    ],
+    [
+      0.28,
+      0.93
+    ],
+    [
+      0.18,
+      0.9
+    ],
+    [
+      0.12,
+      0.86
+    ],
+    [
+      0.08,
+      0.8
+    ],
+    [
+      0.06,
+      0.72
+    ],
+    [
+      0.05,
+      0.62
+    ],
+    [
+      0.05,
+      0.5
+    ],
+    [
+      0.05,
+      0.38
+    ],
+    [
+      0.06,
+      0.28
+    ],
+    [
+      0.08,
+      0.18
+    ],
+    [
+      0.1,
+      0.12
+    ],
+    [
+      0.12,
+      0.08
+    ]
+  ]
+}
