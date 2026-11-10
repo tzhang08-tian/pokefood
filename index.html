@@ -233,6 +233,16 @@ input[type=password]:focus { border-color: var(--gray-mid); }
              phFloat var(--pf-d, 3.5s) ease-in-out infinite var(--pf-a, 0s);
 }
 
+/* TEST MODE button */
+#test-btn {
+  position: fixed; top: 14px; right: 14px; z-index: 950;
+  padding: .45rem .9rem; cursor: pointer;
+  background: #fff; color: #000; border: 1px solid #000;
+  font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .08em; text-transform: uppercase;
+}
+#test-btn:hover { background: #000; color: #fff; }
+#test-btn:disabled { opacity: .4; cursor: default; }
+
 /* Text-effect control box, embedded in the background text */
 #retro-ctrl {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -284,8 +294,11 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 
 /* Right-side text elements */
 #error {
-  display: none; font-size: 11px; color: #c00;
-  line-height: 1.5; text-align: right; max-width: 180px;
+  display: none; position: fixed; top: 58px; right: 14px; z-index: 950;
+  max-width: 360px; padding: .6rem .9rem;
+  background: #fff; border: 1px solid #c00; color: #c00;
+  font: 400 14px/1.45 'Ubuntu Condensed', 'Ubuntu', sans-serif; text-align: left;
+  pointer-events: none;
 }
 
 #food-name {
@@ -952,6 +965,10 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 </svg>
 
 <!-- Food Card button — top center, shown after results load -->
+<!-- TEST MODE (temporary): top-right button that runs the whole pipeline on test/sample.jpg.
+     Remove this button + the TEST MODE block in the script before the on-site launch. -->
+<button id="test-btn" style="display:none">test ▸ load sample</button>
+
 <button id="card-btn">generate food card <span class="cb-arrow">→</span></button>
 
 <!-- Color picker cursor (fixed overlay, pointer-events:none) -->
@@ -4192,6 +4209,24 @@ document.addEventListener('keydown', e => {
 
 // Restore dock on page load
 libRenderDock();
+
+// ── TEST MODE (temporary) ────────────────────────────────────────────────
+// Button at top-right feeds test/sample.jpg through the normal upload pipeline.
+const TEST_MODE = true;   // set to false (or delete this block) before the on-site launch
+if (TEST_MODE) {
+  const btn = document.getElementById('test-btn');
+  btn.style.display = 'block';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = 'loading…';
+    try {
+      const blob = await (await fetch('test/sample.jpg')).blob();
+      await handleFile(new File([blob], 'sample.jpg', { type: blob.type || 'image/jpeg' }));
+    } catch (e) { showErr('Test load failed: ' + e.message); }
+    finally { btn.disabled = false; btn.textContent = label; }
+  });
+}
 
 function resetAll() {
   if (cardViewActive) exitCardView(true);
