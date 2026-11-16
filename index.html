@@ -1009,6 +1009,9 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 #lib-overlay-hdr { border-bottom: 1px solid #fff; }
 #lib-close-btn { font-size: 14px; color: #fff; border: 1px solid #fff; padding: .25rem .6rem; }
 #lib-close-btn:hover { background: #fff; color: #000; }
+#lib-gallery-link { margin-left: auto; margin-right: 1rem; color: #fff; border: 1px solid #fff; padding: .25rem .7rem;
+  font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .12em; text-transform: uppercase; text-decoration: none; }
+#lib-gallery-link:hover { background: #fff; color: #000; }
 #lib-empty { color: #fff; opacity: .6; font-size: 13px; letter-spacing: .14em; }
 .lib-thumb-count { background: #fff; color: #000; border-radius: 0; font-size: 11px; letter-spacing: .1em; }
 #lib-download-btn, #lib-send-btn, #lib-live-back-btn {
@@ -1119,6 +1122,7 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 <div id="lib-overlay">
   <div id="lib-overlay-hdr">
     <span id="lib-overlay-title">CARD LIBRARY</span>
+    <a id="lib-gallery-link" href="gallery.html" target="_blank" rel="noopener">all cards ↗</a>
     <button id="lib-close-btn">✕</button>
   </div>
   <div id="lib-grid"></div>
@@ -1733,6 +1737,9 @@ const USE_MOCK_API = (() => {
 // while QR / device uploads on the deployed site always go to the real /api/analyze.
 let testRunMock = false;
 
+// Whose card this is: the phone's device id for QR uploads, otherwise this browser's own id
+let personForNextRun = null;
+
 async function analyzeFood(b64, mime) {
   const useMock = USE_MOCK_API || testRunMock;
   testRunMock = false;
@@ -1752,6 +1759,7 @@ async function analyzeFood(b64, mime) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       userId: USER_ID,
+      personId: personForNextRun || USER_ID,
       b64: b64,
       mimeType: mime
     })
@@ -3392,13 +3400,14 @@ function makeNutrientAscii() {
     if (uploadBusy || document.hidden || !ph || ph.style.display === 'none') return;
     try {
       const r = await fetch(getBackendUrl(`/api/session?id=${sid}`), { cache: 'no-store' });
-      const { image } = await r.json();
+      const { image, pid } = await r.json();
       if (!image) return;
       uploadBusy = true;
+      personForNextRun = pid || null;
       const blob = await (await fetch(image)).blob();
       await handleFile(new File([blob], 'phone-photo.jpg', { type: blob.type || 'image/jpeg' }));
     } catch (e) { console.warn('phone upload poll:', e); }
-    finally { uploadBusy = false; }
+    finally { uploadBusy = false; personForNextRun = null; }
   }
   const phFile = document.getElementById('ph-file');
   document.getElementById('ph-upload-btn').addEventListener('click', () => phFile.click());
@@ -4203,6 +4212,33 @@ function flyCardOut(imageDataUrl) {
 }
 
 // Send the finished card back to the phone page that uploaded the photo (it polls /api/session?kind=result)
+// Re-encode a card image until its data URL fits the server's size limit
+async function fitImageForUpload(src, maxChars = 850000) {
+  if (src.length <= maxChars) return src;
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = src; });
+  let k = 1, q = 0.9, out = src;
+  for (let i = 0; i < 8 && out.length > maxChars; i++) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    out = c.toDataURL('image/jpeg', q);
+    k *= 0.85; q = Math.max(0.6, q - 0.07);
+  }
+  return out;
+}
+// Every card a user adds to their library is also stored in the public gallery (only the admin can delete it)
+async function publishCardToGallery(imageDataUrl, foodName, calories) {
+  try {
+    const image = await fitImageForUpload(imageDataUrl);
+    const r = await fetch(getBackendUrl('/api/cards'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image, foodName, calories }),
+    });
+    if (!r.ok) console.warn('gallery upload failed:', r.status);
+  } catch (e) { console.warn('gallery upload failed:', e); }
+}
+
 async function saveCardOnDevice(src, name) {
   const blob = await (await fetch(src)).blob();
   const file = new File([blob], (name || 'card').replace(/\s+/g, '_') + '.jpg', { type: blob.type || 'image/jpeg' });
@@ -4224,17 +4260,7 @@ async function sendCardToPhone(btn = document.getElementById('send-phone-btn'), 
       btn.textContent = label; btn.disabled = false;
       return;
     }
-    // re-encode until it fits the relay's size limit
-    const img = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = src; });
-    let k = 1, q = 0.9, out = src;
-    for (let i = 0; i < 6 && out.length > 850000; i++) {
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      out = c.toDataURL('image/jpeg', q);
-      k *= 0.85; q = Math.max(0.6, q - 0.07);
-    }
+    const out = await fitImageForUpload(src);   // fits the relay's size limit
     const r = await fetch(getBackendUrl('/api/session'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: window.pokefoodSid, result: out }),
@@ -4267,6 +4293,7 @@ async function addCardToLibrary() {
     const cards = libLoad();
     cards.push({ id: Date.now(), timestamp: new Date().toISOString(), imageDataUrl, foodName, calories, fx: getComputedStyle(document.documentElement).getPropertyValue('--model-fx').trim() });
     libSave(cards);
+    publishCardToGallery(imageDataUrl, foodName, calories);   // fire-and-forget
 
     // Re-enable before exit so next card open finds buttons ready
     btn.disabled     = false;

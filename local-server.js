@@ -23,8 +23,8 @@ app.use((req, res, next) => {
   if (isLocalDevOrigin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   }
 
   if (req.method === 'OPTIONS') {
@@ -41,6 +41,7 @@ async function loadApiRoutes() {
   const { default: analyzeHandler } = await import('./api/analyze.js');
   const { default: faceHandler } = await import('./api/face-features.js');
   const { default: sessionHandler } = await import('./api/session.js');
+  const { default: cardsHandler } = await import('./api/cards.js');
 
   app.all('/api/analyze', async (req, res) => {
     try {
@@ -65,6 +66,15 @@ async function loadApiRoutes() {
       await sessionHandler(req, res);
     } catch (error) {
       console.error('Error in /api/session:', error);
+      if (!res.headersSent) res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.all('/api/cards', async (req, res) => {
+    try {
+      await cardsHandler(req, res);
+    } catch (error) {
+      console.error('Error in /api/cards:', error);
       if (!res.headersSent) res.status(500).json({ error: error.message });
     }
   });

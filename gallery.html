@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>all cards</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0000AA; color: #fff; min-height: 100vh;
+    font-family: 'Ubuntu Condensed', 'Ubuntu', 'Helvetica Neue', Arial, sans-serif; text-transform: uppercase; letter-spacing: .12em; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    padding: 1rem 1.2rem; border-bottom: 1px solid #fff; font-size: 15px; }
+  header a, header button { color: #fff; background: transparent; border: 1px solid #fff; padding: .3rem .8rem;
+    font: inherit; font-size: 13px; letter-spacing: .12em; text-decoration: none; cursor: pointer; }
+  header a:hover, header button:hover { background: #fff; color: #000; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1.2rem; padding: 1.2rem; }
+  .card { position: relative; }
+  .card img { display: block; width: 100%; height: auto; cursor: zoom-in; }
+  .card .name { margin-top: .4rem; font-size: 12px; opacity: .8; }
+  .card .del { position: absolute; top: 6px; right: 6px; display: none; background: #fff; color: #b00020;
+    border: 1px solid #b00020; padding: .15rem .55rem; font: inherit; font-size: 12px; cursor: pointer; }
+  .admin .card .del { display: block; }
+  #more { display: none; margin: 0 auto 2rem; }
+  #empty { padding: 3rem 1.2rem; text-align: center; opacity: .7; display: none; }
+  #zoom { position: fixed; inset: 0; background: rgba(0,0,40,.94); display: none; align-items: center; justify-content: center; z-index: 10; }
+  #zoom img { max-width: 92vw; max-height: 92vh; }
+</style>
+</head>
+<body>
+<header>
+  <span>all cards <span id="count"></span></span>
+  <span><a href="/">make a card</a> <button id="admin-btn">admin</button></span>
+</header>
+<div id="empty">no cards yet</div>
+<div id="grid"></div>
+<header style="border:0;justify-content:center"><button id="more">load more</button></header>
+<div id="zoom"><img alt=""></div>
+
+<script>
+let token = '';
+try { token = sessionStorage.getItem('pf_admin') || ''; } catch (e) {}
+const grid = document.getElementById('grid'), moreBtn = document.getElementById('more');
+let oldest = 0, total = 0;
+
+function addCard(c) {
+  const d = document.createElement('div');
+  d.className = 'card'; d.dataset.id = c.id;
+  const img = document.createElement('img');
+  img.loading = 'lazy'; img.alt = c.foodName; img.src = '/api/cards?id=' + c.id + '&img=1';
+  img.onclick = () => { zoom.firstElementChild.src = img.src; zoom.style.display = 'flex'; };
+  const n = document.createElement('div'); n.className = 'name'; n.textContent = c.foodName + (c.calories ? ' · ' + c.calories + ' cal' : '');
+  const del = document.createElement('button'); del.className = 'del'; del.textContent = 'delete';
+  del.onclick = async () => {
+    if (!confirm('Delete "' + c.foodName + '" for everyone?')) return;
+    const r = await fetch('/api/cards?id=' + c.id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+    if (r.ok) { d.remove(); total--; count(); } else alert('Delete failed (' + r.status + ')');
+  };
+  d.append(img, n, del); grid.appendChild(d);
+}
+function count() { document.getElementById('count').textContent = total ? '· ' + total : ''; document.getElementById('empty').style.display = total ? 'none' : 'block'; }
+
+async function load() {
+  const r = await fetch('/api/cards?limit=60' + (oldest ? '&before=' + oldest : ''));
+  const { cards } = await r.json();
+  cards.forEach(c => { addCard(c); oldest = c.ts; });
+  total += cards.length; count();
+  moreBtn.style.display = cards.length === 60 ? 'block' : 'none';
+}
+moreBtn.onclick = load;
+
+async function checkAdmin() {
+  if (!token) return false;
+  const r = await fetch('/api/cards?auth=1', { headers: { Authorization: 'Bearer ' + token } });
+  document.body.classList.toggle('admin', r.ok);
+  document.getElementById('admin-btn').textContent = r.ok ? 'admin ✓' : 'admin';
+  if (!r.ok) { token = ''; try { sessionStorage.removeItem('pf_admin'); } catch (e) {} }
+  return r.ok;
+}
+document.getElementById('admin-btn').onclick = async () => {
+  if (document.body.classList.contains('admin')) return;
+  const t = prompt('Admin token');
+  if (!t) return;
+  token = t;
+  if (await checkAdmin()) { try { sessionStorage.setItem('pf_admin', t); } catch (e) {} } else alert('Wrong token');
+};
+const zoom = document.getElementById('zoom');
+zoom.onclick = () => zoom.style.display = 'none';
+load(); checkAdmin();
+</script>
+</body>
+</html>

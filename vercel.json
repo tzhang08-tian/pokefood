@@ -14,6 +14,10 @@
       "use": "@vercel/static"
     },
     {
+      "src": "gallery.html",
+      "use": "@vercel/static"
+    },
+    {
       "src": "vendor/**/*",
       "use": "@vercel/static"
     },
@@ -38,6 +42,10 @@
     {
       "src": "/api/session",
       "dest": "/api/session.js"
+    },
+    {
+      "src": "/api/cards",
+      "dest": "/api/cards.js"
     },
     {
       "src": "/api/face-features",

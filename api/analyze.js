@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import { reserveCard, releaseCard, validPid, LIMIT_MESSAGE } from '../lib/quota.js';
 
 // 简单的内存存储 - 存储用户的调用记录
 // 格式：{ "userId:YYYY-MM-DD": count }
@@ -69,7 +70,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { userId, b64, mimeType } = req.body;
+    const { userId, personId, b64, mimeType } = req.body;
 
     // 验证请求
     if (!userId || !b64 || !mimeType) {
@@ -89,6 +90,14 @@ export default async function handler(req, res) {
         remaining: 0,
       });
     }
+
+    // Per-person card limit (personId = the phone's / browser's device id; falls back to userId)
+    const pid = validPid(personId) ? personId : (validPid(userId) ? userId : null);
+    if (!pid) return res.status(400).json({ error: 'Missing or invalid personId' });
+    if (!(await reserveCard(pid))) {
+      return res.status(429).json({ error: 'Card limit reached', message: LIMIT_MESSAGE, limitReached: true });
+    }
+    let reserved = true;
 
     // 调用Claude API
     const system = `You are a food recognition and nutrition expert.
@@ -144,16 +153,19 @@ Use standard per-serving nutritional values.`;
       },
     ];
 
-    const result = await callClaudeAPI(system, messages);
+    let result;
+    try { result = await callClaudeAPI(system, messages); }
+    catch (e) { await releaseCard(pid); reserved = false; throw e; }
     
     // 记录调用
     recordCall(userId);
     const newRateLimit = checkRateLimit(userId);
 
     // 解析并返回结果
-    const jsonResult = JSON.parse(
-      result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-    );
+    let jsonResult;
+    try {
+      jsonResult = JSON.parse(result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    } catch (e) { await releaseCard(pid); reserved = false; throw e; }
 
     res.status(200).json({
       success: true,

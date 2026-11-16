@@ -45,6 +45,13 @@
 
 <script>
 const sid = new URLSearchParams(location.search).get('s') || '';
+// Stable per-device id: the server uses it to cap each person at a few cards
+let pid = '';
+try { pid = localStorage.getItem('cf_user_id') || ''; } catch (e) {}
+if (!/^[A-Za-z0-9_-]{8,64}$/.test(pid)) {
+  pid = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
+  try { localStorage.setItem('cf_user_id', pid); } catch (e) {}
+}
 const statusEl = document.getElementById('status');
 const say = (t, err) => { statusEl.textContent = t; statusEl.className = err ? 'err' : ''; };
 if (!sid) say('This link is missing its session code — scan the QR code again.', true);
@@ -85,7 +92,7 @@ document.getElementById('file').addEventListener('change', async e => {
     const r = await fetch('/api/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: sid, image }),
+      body: JSON.stringify({ id: sid, image, pid }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `upload failed (${r.status})`);
