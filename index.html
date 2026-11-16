@@ -14,6 +14,7 @@
 html, body { height: 100%; overflow: hidden; }
 
 :root {
+  --model-fx: saturate(1.3) brightness(1.6) contrast(1.42); /* lift for the card's model frame */
   --bg:        #0000AA;   /* classic Windows blue-screen blue */
   --border:    #d8d8d8;
   --border-hi: #b8b8b8;
@@ -141,10 +142,40 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   to { transform: translateY(-50%); }
 }
 /* Single QR code pinned bottom-left, outside the filtered text so it stays scannable */
-.ph-qr {
-  position: absolute; left: 24px; bottom: 24px; display: block;
-  image-rendering: pixelated;
+/* Centre column: QR directly above the filter box, same width, so their white edges line up.
+   Rows 1fr / auto / 1fr keep the box itself exactly at the screen centre. */
+#ph-center {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  display: grid; grid-template-rows: 1fr auto 1fr;
+  grid-template-columns: minmax(0, var(--qrw, 210px)); justify-content: center;
 }
+#ph-top { grid-row: 1; align-self: end; display: flex; flex-direction: column; gap: 0; pointer-events: auto; }
+#ph-qr { line-height: 0; pointer-events: auto; }
+#ph-upload-btn {
+  width: 100%; padding: 1rem .8rem; border-radius: 0; cursor: pointer;
+  background: #fff; color: #000; border: 1px solid #000;
+  font: 400 16px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .09em; white-space: nowrap; text-transform: uppercase;
+  transition: background .15s, color .15s;
+}
+/* Loosely stacked: button, QR and control box touch and overlap a little, deliberately not aligned.
+   Overlaps stay inside the QR's white quiet zone so it still scans. */
+#ph-upload-btn { position: relative; z-index: 3; transform: translateX(-16px) rotate(-.6deg); margin-bottom: -9px; }
+#ph-qr { position: relative; z-index: 1; transform: translateX(5px); }
+#retro-ctrl { position: relative; z-index: 2; transform: translate(14px, -10px) rotate(.5deg); }
+.is-mobile #ph-upload-btn { margin-bottom: 0; }
+#ph-upload-btn:hover { background: #bdbdbd; color: #000; opacity: 1; }
+#ph-upload-btn:disabled { opacity: .5; }
+/* Phone mode (page opened directly on a phone): no QR to scan, bigger touch targets, dynamic viewport */
+.is-mobile .app { height: 100dvh; }
+.is-mobile #ph-qr { display: none; }
+.is-mobile #ph-center { --qrw: min(280px, 78vw); }
+.is-mobile #ph-upload-btn { padding: 1.15rem .8rem; font-size: 18px; }
+.is-mobile #speech-display { width: min(340px, 100vw); }
+.is-mobile #lib-add-btn { right: 12px; }
+.is-mobile #send-phone-btn { right: 60px; padding: 0 .7rem; }
+.is-mobile #hint-3d { font-size: 0; }
+.is-mobile #hint-3d::after { content: 'drag to rotate · pinch to zoom'; font-size: 10px; }
+.ph-qr { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 @keyframes phColor {
   0%   { color: hsl(0,45%,58%); }
   16%  { color: hsl(60,45%,52%); }
@@ -246,55 +277,64 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 #hint-3d { color: rgba(255,255,255,.75); }
 
 /* ── Model-view control console: a grey arc at the bottom with four knobs (pixel/levels/crystal/blur) ── */
-#hint-3d { bottom: 230px !important; }
+#hint-3d { bottom: 3.6rem !important; }
 #model-console {
-  position: absolute; left: 50%; bottom: 0; width: 700px; height: 210px; margin-left: -350px;
-  transform-origin: 50% 100%; transform: scale(var(--mcs, 1));
-  display: none; z-index: 15; pointer-events: none;
+  position: absolute; left: 50%; bottom: 1.2rem; transform: translateX(-50%);
+  display: none; z-index: 15; pointer-events: auto;
+  flex-direction: row; gap: 0;
+  background: #fff; border: 1px solid #000;
+  max-width: calc(100% - 16px);
 }
-#mc-svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; filter: drop-shadow(0 -4px 10px rgba(0,0,0,.35)); }
-#mc-svg path { pointer-events: auto; }
-.mc-knob {
-  position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px;
-  pointer-events: auto; touch-action: none; cursor: ns-resize; user-select: none;
+#model-console label {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .35rem .6rem;
+  font: 400 10px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #000;
 }
-/* recessed bezel with tick marks */
-.mc-bezel {
-  position: absolute; inset: 0; border-radius: 50%;
-  background:
-    repeating-conic-gradient(from -135deg, rgba(255,255,255,.55) 0 1.2deg, transparent 1.2deg 27deg) ,
-    radial-gradient(circle at 50% 60%, #3d3d3d, #6b6b6b 70%, #8f8f8f);
-  -webkit-mask: radial-gradient(circle, #000 0 98%, transparent 100%);
-  box-shadow: inset 0 3px 6px rgba(0,0,0,.75), 0 1.5px 0 rgba(255,255,255,.55);
-  clip-path: circle(50%);
+#model-console input[type=range] {
+  -webkit-appearance: none; appearance: none;
+  width: 56px; height: 1px; background: #000; outline: none; cursor: pointer;
 }
-/* the cap — lit from the top-left to read as a raised, rotating button */
-.mc-cap {
-  position: absolute; inset: 13px; border-radius: 50%;
-  background:
-    radial-gradient(circle at 34% 28%, #fff 0, #e6e6e6 18%, #b5b5b5 52%, #6e6e6e 100%);
-  box-shadow:
-    0 5px 0 #4a4a4a,
-    0 8px 10px rgba(0,0,0,.55),
-    inset 0 -4px 6px rgba(0,0,0,.35),
-    inset 0 3px 4px rgba(255,255,255,.9);
-  transition: transform .06s, box-shadow .06s;
+#model-console input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 7px; height: 7px; border-radius: 0; background: #000; cursor: grab;
 }
-.mc-knob.held .mc-cap { transform: translateY(3px); box-shadow: 0 2px 0 #4a4a4a, 0 3px 5px rgba(0,0,0,.5), inset 0 -4px 6px rgba(0,0,0,.35), inset 0 3px 4px rgba(255,255,255,.9); }
-.mc-ptr { position: absolute; inset: 0; transform: rotate(var(--ang, -135deg)); }
-.mc-ptr::after {
-  content: ''; position: absolute; left: 50%; top: 4px; width: 3px; height: 13px; margin-left: -1.5px;
-  background: #1a1a1a; border-radius: 2px; box-shadow: 0 1px 0 rgba(255,255,255,.6);
+#model-console input[type=range]::-moz-range-thumb {
+  width: 7px; height: 7px; border-radius: 0; border: none; background: #000; cursor: grab;
 }
-.mc-label {
-  position: absolute; left: 50%; top: 76px; transform: translateX(-50%); white-space: nowrap;
-  font: 400 11px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .14em; text-transform: uppercase;
-  color: #2a2a2a; text-shadow: 0 1px 0 rgba(255,255,255,.7);
+
+
+/* ── Card-view tutorial ── */
+#tut { position: fixed; inset: 0; z-index: 400; display: none; pointer-events: none; }
+#tut.on { display: block; }
+#tut-spot {
+  position: fixed; border: 1px solid #fff; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(0,0,40,.4);
+  transition: left .3s, top .3s, width .3s, height .3s;
 }
+#tut-tip {
+  position: fixed; width: 250px; background: #fff; color: #000; padding: .8rem .9rem .7rem; pointer-events: auto;
+  font: 400 13px/1.45 'Ubuntu Condensed','Ubuntu',sans-serif; letter-spacing: .03em;
+  transition: left .3s, top .3s;
+}
+#tut-tip::before {
+  content: ''; position: absolute; width: 12px; height: 12px; background: #fff;
+  left: var(--ax, 50%); margin-left: -6px; transform: rotate(45deg);
+}
+#tut-tip.below::before { top: -6px; }
+#tut-tip.above::before { bottom: -6px; }
+#tut-step { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; opacity: .55; margin-bottom: .3rem; }
+#tut-text { margin-bottom: .7rem; }
+#tut-btns { display: flex; justify-content: space-between; align-items: center; }
+#tut-btns button {
+  font: 400 11px 'Ubuntu Condensed','Ubuntu',sans-serif; letter-spacing: .1em; text-transform: uppercase;
+  background: transparent; color: #000; border: 1px solid #000; padding: .25rem .7rem; cursor: pointer;
+}
+#tut-btns button:hover { background: #000; color: #fff; }
+#tut-skip { border-color: transparent !important; opacity: .6; padding-left: 0 !important; }
+#model-console.in-card { position: fixed; z-index: 320; bottom: 1rem; display: flex; }
 
 /* TEST MODE button */
 #test-btn {
-  position: fixed; top: 14px; left: 14px; z-index: 950;
+  position: fixed; top: 14px; left: 14px; z-index: 250;
   padding: .45rem .9rem; cursor: pointer;
   background: #fff; color: #000; border: 1px solid #000;
   font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .08em; text-transform: uppercase;
@@ -304,9 +344,9 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 
 /* Text-effect control box, embedded in the background text */
 #retro-ctrl {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  grid-row: 2; box-sizing: border-box;
   display: flex; flex-direction: column; gap: .55rem;
-  z-index: 1; pointer-events: auto;
+  pointer-events: auto;
   background: #fff; border: 1px solid #000;
   padding: .8rem 1.1rem;
   font-family: 'Ubuntu Condensed', 'Ubuntu', sans-serif;
@@ -315,7 +355,7 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 #retro-ctrl label { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 #retro-ctrl input[type=range] {
   -webkit-appearance: none; appearance: none;
-  width: 110px; height: 1px; background: #000;
+  flex: 1; min-width: 40px; height: 1px; background: #000;
   outline: none; cursor: pointer;
 }
 #retro-ctrl input[type=range]::-webkit-slider-thumb {
@@ -422,19 +462,17 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 #card-btn {
   position: fixed; top: .9rem; left: 50%; transform: translateX(-50%);
   z-index: 90; display: none;
-  background: rgba(14,14,18,.82);
-  color: rgba(255,255,255,.85);
-  border: 1px solid rgba(255,255,255,.16);
-  font-family: 'Cinzel', serif;
-  font-size: 9px; letter-spacing: .16em; text-transform: uppercase;
-  padding: .38rem 1rem; border-radius: 20px; cursor: pointer;
-  white-space: nowrap;
+  background: transparent; color: #fff; border: none;
+  font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: .3rem .2rem; cursor: pointer; white-space: nowrap;
   align-items: center; gap: .55rem;
-  transition: background .2s, border-color .2s;
+  border-bottom: 1px solid rgba(255,255,255,.0);
+  transition: border-color .2s;
   pointer-events: all;
 }
 #card-btn.cb-show { display: flex; }
-#card-btn:hover { background: rgba(30,30,36,.95); border-color: rgba(255,255,255,.32); }
+#card-btn:hover { border-bottom-color: #fff; }
 #card-btn .cb-arrow { font-size: 14px; opacity: .7; }
 
 /* ── Card view overlay ── */
@@ -464,13 +502,12 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 
 #card-back-btn {
   position: fixed; top: 1rem; left: 1.2rem; z-index: 310;
-  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
-  color: rgba(255,255,255,.65); font-family: 'Cinzel', serif;
-  font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
-  padding: .35rem .85rem; border-radius: 20px; cursor: pointer;
-  transition: all .2s; pointer-events: all;
+  background: transparent; border: 1px solid #fff; border-radius: 0;
+  color: #fff; font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: .35rem .85rem; cursor: pointer; pointer-events: all;
 }
-#card-back-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
+#card-back-btn:hover { background: #fff; color: #000; }
 
 /* ── The food card ── */
 .food-card {
@@ -544,8 +581,9 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   pointer-events: all;
 }
 .cal-fill {
-  position: absolute; inset: 4px;
+  position: absolute; inset: 3px;   /* tucks 1px under the ring's border so no see-through seam */
   border-radius: 50%;
+  background: #243c7a;   /* opaque default; JS sets the theme colour per card */
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 2px;
@@ -567,10 +605,11 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 .card-model-area {
   position: relative; width: 100%; height: 355px;
   background: #08080e; overflow: hidden;
+  filter: var(--model-fx);
 }
 .card-model-area::after {
   content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-  background: radial-gradient(ellipse at 50% 50%, transparent 50%, rgba(6,6,10,.5) 100%);
+  background: radial-gradient(ellipse at 50% 50%, transparent 50%, rgba(6,6,10,.3) 100%);
 }
 .card-model-area #three-mount {
   position: absolute !important; inset: 0 !important; display: block !important;
@@ -696,30 +735,33 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   position: absolute;
   top: 16px; right: 16px;
   z-index: 300;
-  width: 46px; height: 46px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.14);
-  border: 2.5px solid rgba(255,255,255,.55);
+  width: 40px; height: 40px;
+  border-radius: 0;
+  background: transparent;
+  border: 1px solid #fff;
   color: #fff;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 4px 18px rgba(0,0,0,.45);
-  transition: background .18s, transform .18s, box-shadow .18s;
+  transition: background .18s, color .18s;
   opacity: 0;
   pointer-events: none;
 }
+#send-phone-btn {
+  position: absolute; top: 16px; right: 68px; z-index: 300; height: 40px; padding: 0 1rem;
+  background: transparent; border: 1px solid #fff; border-radius: 0; color: #fff; cursor: pointer;
+  font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .1em; text-transform: uppercase;
+  transition: background .18s, color .18s; opacity: 0; pointer-events: none; white-space: nowrap;
+}
+.cv-active #send-phone-btn { opacity: 1; pointer-events: all; }
+#send-phone-btn:hover { background: #fff; color: #000; }
+#send-phone-btn:disabled { opacity: .5; pointer-events: none; }
 #lib-add-btn svg { display: block; }
 .cv-active #lib-add-btn {
   opacity: 1;
   pointer-events: all;
 }
-#lib-add-btn:hover {
-  background: rgba(255,255,255,.28);
-  transform: scale(1.12);
-  box-shadow: 0 6px 28px rgba(0,0,0,.6);
-}
-#lib-add-btn:active { transform: scale(0.97); }
+#lib-add-btn:hover { background: #fff; color: #000; }
+#lib-add-btn:active { opacity: .8; }
 #lib-add-btn:disabled { opacity: .4; pointer-events: none; }
 
 /* Fly-out card animation */
@@ -833,7 +875,7 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   align-content: start;
 }
 .lib-card-item {
-  cursor: pointer;
+  cursor: grab; touch-action: none; user-select: none;
   border-radius: 13px;
   overflow: hidden;
   width: 70%;
@@ -850,49 +892,7 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   transform: scale(1.08) translateY(-6px);
   box-shadow: 0 22px 56px rgba(0,0,0,.85);
 }
-.lib-card-item.lib-long-pressed {
-  transform: scale(1.04);
-  box-shadow: 0 12px 40px rgba(0,0,0,.9);
-}
 
-/* Long-press delete menu */
-#lib-delete-menu {
-  position: fixed;
-  z-index: 1100;
-  background: rgba(18,18,26,.96);
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 10px;
-  padding: 6px 0;
-  box-shadow: 0 12px 40px rgba(0,0,0,.8);
-  backdrop-filter: blur(8px);
-  opacity: 0;
-  transform: scale(0.9);
-  transition: opacity .15s, transform .15s;
-  pointer-events: none;
-}
-#lib-delete-menu.lib-menu-open {
-  opacity: 1;
-  transform: scale(1);
-  pointer-events: all;
-}
-#lib-delete-menu button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 10px 18px;
-  background: none;
-  border: none;
-  color: #ff5f5f;
-  font-size: 13px;
-  letter-spacing: .06em;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background .12s;
-}
-#lib-delete-menu button:hover {
-  background: rgba(255,95,95,.12);
-}
 #lib-empty {
   margin: auto;
   color: rgba(255,255,255,.3);
@@ -954,6 +954,8 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   transform: translateY(-2px);
 }
 #lib-download-btn:active { transform: translateY(0); }
+#lib-send-btn { cursor: pointer; }
+#lib-send-btn:disabled { opacity: .5; pointer-events: none; }
 
 /* Greyscale veil for main content when library is open */
 .app.lib-bw {
@@ -997,6 +999,33 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   background: rgba(255,255,255,.24);
   border-color: rgba(255,255,255,.55);
 }
+/* ── Library / download: flat, Ubuntu Condensed, white boxes ── */
+#lib-overlay-title, .lib-thumb-count, #lib-download-btn, #lib-send-btn, #lib-live-bar-title, #lib-live-back-btn,
+#lib-close-btn, #lib-empty {
+  font-family: 'Ubuntu Condensed', 'Ubuntu', sans-serif; font-weight: 400; text-transform: uppercase;
+}
+#lib-overlay-title { font-size: 15px; letter-spacing: .16em; color: #fff; }
+#lib-overlay { background: rgba(0,0,40,.92); backdrop-filter: none; }
+#lib-overlay-hdr { border-bottom: 1px solid #fff; }
+#lib-close-btn { font-size: 14px; color: #fff; border: 1px solid #fff; padding: .25rem .6rem; }
+#lib-close-btn:hover { background: #fff; color: #000; }
+#lib-empty { color: #fff; opacity: .6; font-size: 13px; letter-spacing: .14em; }
+.lib-thumb-count { background: #fff; color: #000; border-radius: 0; font-size: 11px; letter-spacing: .1em; }
+#lib-download-btn, #lib-send-btn, #lib-live-back-btn {
+  background: transparent; border: 1px solid #fff; border-radius: 0; color: #fff;
+  font-size: 13px; letter-spacing: .14em; padding: .4rem 1.1rem; backdrop-filter: none; transform: none !important;
+  transition: background .15s, color .15s;
+}
+#lib-download-btn:hover, #lib-send-btn:hover, #lib-live-back-btn:hover { background: #fff; color: #000; border-color: #fff; }
+#lib-live-bar-title { font-size: 14px; letter-spacing: .18em; color: #fff; }
+#lib-trash {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid #fff; color: #fff; background: transparent;
+  transition: background .15s, color .15s, width .15s, height .15s;
+}
+#lib-trash.armed { width: 72px; height: 72px; }
+#lib-trash.hot { background: #fff; color: #000; width: 84px; height: 84px; }
 </style>
 
 <script type="importmap">
@@ -1028,7 +1057,7 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
      Remove this button + the TEST MODE block in the script before the on-site launch. -->
 <button id="test-btn" style="display:none">test ▸ load sample</button>
 
-<button id="card-btn">generate food card <span class="cb-arrow">→</span></button>
+<button id="card-btn">generate your card <span class="cb-arrow">→</span></button>
 
 <!-- Color picker cursor (fixed overlay, pointer-events:none) -->
 <div id="cv-cursor"></div>
@@ -1039,11 +1068,11 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 <!-- Card view overlay -->
 <div id="card-view">
   <button id="card-back-btn">← Back</button>
+  <button id="send-phone-btn" title="send card back to your phone">send to phone →</button>
   <button id="lib-add-btn" title="add card to library" aria-label="add card to library">
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="11" cy="11" r="9"/>
-      <line x1="11" y1="7" x2="11" y2="15"/>
-      <line x1="7" y1="11" x2="15" y2="11"/>
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square">
+      <line x1="11" y1="4" x2="11" y2="18"/>
+      <line x1="4" y1="11" x2="18" y2="11"/>
     </svg>
   </button>
   <div class="food-card cv-selectable" id="food-card" data-pick-prop="border-color">
@@ -1073,6 +1102,16 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   </div>
 </div>
 
+<!-- Card-view tutorial (spotlight + tooltip) -->
+<div id="tut">
+  <div id="tut-spot"></div>
+  <div id="tut-tip">
+    <div id="tut-step"></div>
+    <div id="tut-text"></div>
+    <div id="tut-btns"><button id="tut-skip">skip</button><button id="tut-next">next →</button></div>
+  </div>
+</div>
+
 <!-- Card Library Thumbnail Dock -->
 <div id="lib-dock"></div>
 
@@ -1083,6 +1122,11 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
     <button id="lib-close-btn">✕</button>
   </div>
   <div id="lib-grid"></div>
+  <div id="lib-trash" aria-label="drag a card here to delete it">
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square">
+      <path d="M3 6h20"/><path d="M9 6V3h8v3"/><path d="M5 6l1.5 17h13L21 6"/><path d="M11 10v9M15 10v9"/>
+    </svg>
+  </div>
 </div>
 
 <!-- Single Card Zoom -->
@@ -1093,8 +1137,9 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M7 1v8M4 6l3 3 3-3"/><path d="M1 11h12"/>
       </svg>
-      DOWNLOAD
+      download
     </button>
+    <button id="lib-send-btn" title="send card to your phone">send to phone →</button>
   </div>
 </div>
 
@@ -1104,40 +1149,24 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   <button id="lib-live-back-btn">← BACK</button>
 </div>
 
-<!-- Long-press delete context menu -->
-<div id="lib-delete-menu">
-  <button id="lib-delete-btn">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-      <polyline points="1,3 13,3"/><path d="M5,3V2h4v1"/><path d="M2,3l1,9h6l1-9"/>
-    </svg>
-    Delete Card
-  </button>
-</div>
-
-<!-- API Key Modal (shown on page load) -->
-<div id="api-modal">
-  <div id="api-dialog">
-    <h2>Anthropic API Key</h2>
-    <div id="api-has-key-msg" style="display:none">API key is configured. You're ready to go.</div>
-    <div id="api-input-row" style="display:none">
-      <input type="password" id="api-key-input" placeholder="sk-ant-..." />
-    </div>
-    <button id="api-close-btn">Close</button>
-  </div>
-</div>
-
 <div class="app">
 
   <!-- Full-screen character panel -->
   <div class="char-panel">
     <div class="placeholder" id="placeholder">
       <div id="placeholder-text"><div id="ph-flow"></div><div id="ph-loading"></div></div>
-      <div id="ph-qr"></div>
+      <div id="ph-center">
+      <div id="ph-top">
+        <button id="ph-upload-btn" type="button">upload from device</button>
+        <input type="file" id="ph-file" accept="image/*" hidden>
+        <div id="ph-qr"></div>
+      </div>
       <div id="retro-ctrl">
         <label>pixel <input type="range" id="r-pixel" min="0" max="16" step="1" value="0"></label>
         <label>levels <input type="range" id="r-levels" min="0" max="8" step="1" value="0"></label>
         <label>crystal <input type="range" id="r-crystal" min="0" max="60" step="1" value="0"></label>
         <label>blur <input type="range" id="r-blur" min="0" max="8" step="1" value="0"></label>
+      </div>
       </div>
     </div>
     <canvas id="shadow-canvas"></canvas>
@@ -1151,16 +1180,10 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
     <div id="speech-display"><div id="speech-inner"></div></div>
 
     <div id="model-console">
-      <svg id="mc-svg" viewBox="0 0 700 210" width="700" height="210" aria-hidden="true">
-        <defs>
-          <linearGradient id="mc-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#bcbcbc"/><stop offset=".45" stop-color="#8e8e8e"/><stop offset="1" stop-color="#5a5a5a"/>
-          </linearGradient>
-        </defs>
-        <path d="M0,210 L0,200 A620,620 0 0 1 700,200 L700,210 Z" fill="url(#mc-fill)" stroke="#fff" stroke-width="3"/>
-        <path d="M9,210 L9,200 A611,611 0 0 1 691,200 L691,210" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-        <path d="M14,210 L14,200 A606,606 0 0 1 686,200 L686,210" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1.5"/>
-      </svg>
+      <label>pixel <input type="range" data-k="pixel" min="2" max="16" step="1"></label>
+      <label>levels <input type="range" data-k="levels" min="2" max="8" step="1"></label>
+      <label>crystal <input type="range" data-k="crystal" min="0" max="60" step="1"></label>
+      <label>blur <input type="range" data-k="blur" min="0" max="20" step="0.5"></label>
     </div>
     <div id="hint-3d">drag to rotate &nbsp;·&nbsp; scroll to zoom</div>
   </div>
@@ -1191,6 +1214,13 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass }     from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass }     from 'three/addons/postprocessing/ShaderPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// Phone mode: the page was opened directly on a touch device (not through the QR relay)
+const IS_MOBILE = matchMedia('(pointer: coarse)').matches && Math.min(innerWidth, innerHeight) < 820;
+if (IS_MOBILE) {
+  document.documentElement.classList.add('is-mobile');
+  document.body.classList.add('is-mobile');
+}
 
 const PRESET_FACES = [
   'faces/1.png','faces/2.png','faces/3.png','faces/4.png',
@@ -1424,54 +1454,23 @@ function mcCurrent(id) {
   if (id === 'blur')   return Math.max(0, Math.min(20, blurCur));
   return crystalCur < 0.05 ? 0 : Math.max(2, Math.min(60, crystalSizeCur));
 }
-function mcRender(k, v) {
-  const f = (v - k.min) / (k.max - k.min);
-  mcEls[k.id].style.setProperty('--ang', `${(-135 + 270 * Math.max(0, Math.min(1, f))).toFixed(1)}deg`);
-}
+function mcRender(k, v) { mcEls[k.id].value = v; }
 function syncConsoleKnobs() {
   MC_KNOBS.forEach(k => { if (!mcHeld.has(k.id)) mcRender(k, mcCurrent(k.id)); });
 }
 (function buildConsole() {
-  const box = document.getElementById('model-console');
-  const R = 620, CX = 350, BASE = 200;
-  const edgeY = x => BASE - (Math.sqrt(R * R - (x - CX) ** 2) - Math.sqrt(R * R - CX * CX));
-  [175, 295, 405, 525].forEach((x, i) => {
-    const k = MC_KNOBS[i];
-    const el = document.createElement('div');
-    el.className = 'mc-knob';
-    el.style.left = x + 'px';
-    el.style.top  = (edgeY(x) + 32) + 'px';
-    el.innerHTML = '<div class="mc-bezel"></div><div class="mc-cap"><div class="mc-ptr"></div></div>' +
-                   `<div class="mc-label">${k.label}</div>`;
-    box.appendChild(el);
+  MC_KNOBS.forEach(k => {
+    const el = document.querySelector(`#model-console input[data-k="${k.id}"]`);
     mcEls[k.id] = el;
-    let startY = 0, startV = 0;
-    el.addEventListener('pointerdown', e => {
-      el.setPointerCapture(e.pointerId);
-      mcHeld.add(k.id); el.classList.add('held');
-      startY = e.clientY; startV = mcCurrent(k.id);
-      e.preventDefault();
-    });
-    el.addEventListener('pointermove', e => {
-      if (!mcHeld.has(k.id)) return;
-      const v = Math.max(k.min, Math.min(k.max, startV + (startY - e.clientY) * (k.max - k.min) / 160));
-      const q = k.id === 'levels' || k.id === 'crystal' || k.id === 'pixel' ? Math.round(v) : v;
-      mcSet(k.id, q); mcRender(k, q);
-    });
-    const release = () => { mcHeld.delete(k.id); el.classList.remove('held'); };
+    el.addEventListener('pointerdown', () => mcHeld.add(k.id));
+    const release = () => mcHeld.delete(k.id);
     el.addEventListener('pointerup', release);
     el.addEventListener('pointercancel', release);
-    el.addEventListener('wheel', e => {
-      e.preventDefault();
-      const step = (k.max - k.min) / 40;
-      const v = Math.max(k.min, Math.min(k.max, mcCurrent(k.id) - Math.sign(e.deltaY) * step));
-      mcSet(k.id, v); mcRender(k, v);
-    }, { passive: false });
+    el.addEventListener('input', () => mcSet(k.id, parseFloat(el.value)));
+    el.addEventListener('wheel', e => e.stopPropagation(), { passive: true });
   });
-  const fit = () => box.style.setProperty('--mcs', Math.min(1, (innerWidth - 16) / 700).toFixed(3));
-  fit(); addEventListener('resize', fit);
 })();
-function showModelConsole(on) { document.getElementById('model-console').style.display = on ? 'block' : 'none'; }
+function showModelConsole(on) { document.getElementById('model-console').style.display = on ? 'flex' : 'none'; }
 
 // Auto-randomize retro values on a random 3–10 s interval with smooth slide.
 // ~18% passthrough | ~16% color halftone | ~20% retro pixel | ~20% crystallize | ~26% blur
@@ -1730,8 +1729,14 @@ const USE_MOCK_API = (() => {
   return ['localhost', '127.0.0.1'].includes(location.hostname);
 })();
 
+// One-shot: the TEST button sets this so only that run uses the saved sample result,
+// while QR / device uploads on the deployed site always go to the real /api/analyze.
+let testRunMock = false;
+
 async function analyzeFood(b64, mime) {
-  if (USE_MOCK_API) {
+  const useMock = USE_MOCK_API || testRunMock;
+  testRunMock = false;
+  if (useMock) {
     console.info('[mock] using test/sample-analysis.json instead of /api/analyze');
     const [data] = await Promise.all([
       fetch('test/sample-analysis.json').then(r => {
@@ -3363,12 +3368,13 @@ function makeNutrientAscii() {
     qr.addData(url); qr.make();
     const n = qr.getModuleCount();
     const dpr = window.devicePixelRatio || 1;
-    const m = Math.max(2, Math.round(3 * dpr));   // module size in device pixels (integer): 3 CSS px per module
     const quiet = 4;                               // quiet zone, in modules (QR spec)
+    const cssM = Math.max(3, Math.round(210 / (n + quiet * 2)));   // whole CSS px per module → width ≈ the filter box
+    const m = Math.max(2, Math.round(cssM * dpr));                  // module size in device pixels (integer)
     const size = (n + quiet * 2) * m;
     const c = document.createElement('canvas');
     c.width = c.height = size;
-    c.style.width = c.style.height = `${size / dpr}px`;
+    document.getElementById('ph-center').style.setProperty('--qrw', `${size / dpr}px`);
     const g = c.getContext('2d');
     g.fillStyle = '#fff'; g.fillRect(0, 0, size, size);
     g.fillStyle = '#000';
@@ -3379,6 +3385,7 @@ function makeNutrientAscii() {
 
   // Session: the QR opens mobile.html?s=<id>; the phone posts a photo there and we poll for it
   const sid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => (b % 36).toString(36)).join('');
+  window.pokefoodSid = sid;   // used by "send to phone"
   let uploadBusy = false;
   async function pollPhoneUpload() {
     const ph = document.getElementById('placeholder');
@@ -3393,7 +3400,15 @@ function makeNutrientAscii() {
     } catch (e) { console.warn('phone upload poll:', e); }
     finally { uploadBusy = false; }
   }
+  const phFile = document.getElementById('ph-file');
+  document.getElementById('ph-upload-btn').addEventListener('click', () => phFile.click());
+  phFile.addEventListener('change', async () => {
+    const f = phFile.files[0];
+    phFile.value = '';
+    if (f) await handleFile(f);
+  });
   (async () => {
+    if (IS_MOBILE) return;   // phone opened the page itself — no QR needed, and no relay polling
     let base = location.origin;
     if (['localhost', '127.0.0.1'].includes(location.hostname)) {
       // a phone can't reach "localhost" — point the QR at this machine's LAN address
@@ -3559,7 +3574,7 @@ function enterCardView() {
   document.getElementById('cc-cal').style.color = '';
   document.querySelector('.card-cal-label').style.color = '';
   document.querySelector('.cal-ring').style.borderColor = '';
-  document.querySelector('.cal-fill').style.background = '';
+  document.querySelector('.cal-fill').style.background = theme.bg;   // opaque, matches the header
   document.getElementById('card-model-area').style.background = '';
 
   // Ability rows — top 2 nutrients by value
@@ -3568,7 +3583,8 @@ function enterCardView() {
   const nutrObj = data.nutrients || {};
   const topNutrients = Object.entries(nutrObj)
     .filter(([k, v]) => v > 0 && NUTRIENT_LABEL[k])
-    .sort(([, a], [, b]) => b - a)
+    // rank by mass in grams so mg-unit minerals don't always beat the macros
+    .sort(([ka, a], [kb, b]) => (b / (NUTRIENT_UNIT[kb] === 'mg' ? 1000 : 1)) - (a / (NUTRIENT_UNIT[ka] === 'mg' ? 1000 : 1)))
     .slice(0, 2);
   topNutrients.forEach(([key, val], i) => {
     const iconKey = key.toLowerCase().replace(/\s+/g,'');
@@ -3657,10 +3673,15 @@ function enterCardView() {
   document.getElementById('card-btn').classList.remove('cb-show');
   cardViewActive = true;
   cardRaf = requestAnimationFrame(cardTiltLoop);
+  // the filter console rides above the card so it can be used while customising
+  const mc = document.getElementById('model-console');
+  document.body.appendChild(mc); mc.classList.add('in-card');
+  setTimeout(startCardTutorial, 900);
 }
 
 function exitCardView(instant) {
   if (!cardViewActive) return;
+  tutEnd();
   deselectCardEl();
   document.getElementById('card-view').classList.remove('cv-active');
   cardViewActive = false;
@@ -3671,6 +3692,8 @@ function exitCardView(instant) {
     const fc = document.getElementById('face-canvas');
     if (mount.parentElement !== charPanel) charPanel.insertBefore(mount, fc);
     document.getElementById('shadow-canvas').style.display = currentData ? 'block' : 'none';
+    const mc = document.getElementById('model-console');
+    mc.classList.remove('in-card'); charPanel.appendChild(mc);
     onResize();
 
     // Re-enable model auto-rotation
@@ -3696,6 +3719,54 @@ function exitCardView(instant) {
   if (instant) restore();
   else setTimeout(restore, 420);
 }
+
+// ── Card-view tutorial: step-by-step, each step spotlights the thing it explains ──
+const TUT_STEPS = [
+  { sel: '#card-model-area', text: 'Click the empty background around the model to change the background colour.' },
+  { sel: '#card-model-area', text: 'Drag the model to rotate it. Scroll over it to zoom, so it sits on the card the way you like.' },
+  { sel: '#cc-name',         text: 'Click any text (name, numbers, nutrient names), then click the model: the text takes the colour you pick from it. Scroll while it is selected to resize the text.' },
+  { sel: '#card-hdr',        text: 'Header, border, calorie ring and the other blocks work the same way: click one, then click a spot on the model to colour it. Esc cancels.' },
+  { sel: '#model-console',   text: 'Drag these sliders to change the filter on the model: pixel, levels, crystal and blur.' },
+  { sel: '#lib-add-btn',     text: 'Happy with the card? Click + to save it to your library.' },
+];
+let tutIdx = -1;
+function tutShow(i) {
+  const tut = document.getElementById('tut');
+  if (!cardViewActive || i >= TUT_STEPS.length) { tutEnd(); return; }
+  tutIdx = i;
+  const st = TUT_STEPS[i];
+  const target = document.querySelector(st.sel);
+  if (!target) { tutShow(i + 1); return; }
+  const r = target.getBoundingClientRect();
+  const pad = 6;
+  const spot = document.getElementById('tut-spot');
+  spot.style.left = (r.left - pad) + 'px'; spot.style.top = (r.top - pad) + 'px';
+  spot.style.width = (r.width + pad * 2) + 'px'; spot.style.height = (r.height + pad * 2) + 'px';
+  document.getElementById('tut-step').textContent = `step ${i + 1} / ${TUT_STEPS.length}`;
+  document.getElementById('tut-text').textContent = st.text;
+  document.getElementById('tut-next').textContent = i === TUT_STEPS.length - 1 ? 'done' : 'next →';
+  tut.classList.add('on');
+  const tip = document.getElementById('tut-tip');
+  const th = tip.offsetHeight, tw = tip.offsetWidth, gap = 16;
+  // place below the target when there is room, else above; if the target is huge, place it inside at the bottom
+  let top, cls;
+  if (r.bottom + gap + th < innerHeight) { top = r.bottom + pad + gap; cls = 'below'; }
+  else if (r.top - gap - th > 0)         { top = r.top - pad - gap - th; cls = 'above'; }
+  else                                   { top = Math.max(8, r.top + 12); cls = 'below'; }
+  const cx = r.left + r.width / 2;
+  const left = Math.max(8, Math.min(innerWidth - tw - 8, cx - tw / 2));
+  tip.className = cls;
+  tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  tip.style.setProperty('--ax', Math.max(14, Math.min(tw - 14, cx - left)) + 'px');
+}
+function tutEnd() {
+  tutIdx = -1;
+  document.getElementById('tut').classList.remove('on');
+}
+function startCardTutorial() { if (cardViewActive) tutShow(0); }
+document.getElementById('tut-next').addEventListener('click', () => tutShow(tutIdx + 1));
+document.getElementById('tut-skip').addEventListener('click', tutEnd);
+addEventListener('resize', () => { if (tutIdx >= 0) tutShow(tutIdx); });
 
 document.getElementById('card-btn').addEventListener('click', enterCardView);
 document.getElementById('card-back-btn').addEventListener('click', () => {
@@ -4046,7 +4117,7 @@ async function captureCardImage() {
       scale:           2,
       logging:         false,
       backgroundColor: null,
-      ignoreElements:  el => el.id === 'lib-add-btn' || el.id === 'card-back-btn',
+      ignoreElements:  el => el.id === 'lib-add-btn' || el.id === 'card-back-btn' || el.id === 'send-phone-btn',
     });
   } finally {
     // 7. Always restore DOM state — runs even if html2canvas throws
@@ -4085,7 +4156,7 @@ async function captureCardImage() {
   adjCanvas.width  = mw;
   adjCanvas.height = mh;
   const adjCtx = adjCanvas.getContext('2d');
-  adjCtx.filter = 'brightness(1.08) saturate(1.05) contrast(0.96)';
+  adjCtx.filter = getComputedStyle(document.documentElement).getPropertyValue('--model-fx').trim() || 'none';
   adjCtx.drawImage(resultCanvas, mx, my, mw, mh, 0, 0, mw, mh);
   postCtx.drawImage(adjCanvas, mx, my);
 
@@ -4131,6 +4202,57 @@ function flyCardOut(imageDataUrl) {
   setTimeout(() => img.remove(), 640);
 }
 
+// Send the finished card back to the phone page that uploaded the photo (it polls /api/session?kind=result)
+async function saveCardOnDevice(src, name) {
+  const blob = await (await fetch(src)).blob();
+  const file = new File([blob], (name || 'card').replace(/\s+/g, '_') + '.jpg', { type: blob.type || 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); } catch (e) { if (e.name !== 'AbortError') throw e; }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function sendCardToPhone(btn = document.getElementById('send-phone-btn'), imageSrc = null) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = IS_MOBILE ? 'saving…' : 'sending…';
+  try {
+    const src = imageSrc || await captureCardImage();
+    if (IS_MOBILE) {   // already on the phone: hand the card to the share sheet / download
+      await saveCardOnDevice(src, document.getElementById('cc-name').textContent);
+      btn.textContent = label; btn.disabled = false;
+      return;
+    }
+    // re-encode until it fits the relay's size limit
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = src; });
+    let k = 1, q = 0.9, out = src;
+    for (let i = 0; i < 6 && out.length > 850000; i++) {
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      out = c.toDataURL('image/jpeg', q);
+      k *= 0.85; q = Math.max(0.6, q - 0.07);
+    }
+    const r = await fetch(getBackendUrl('/api/session'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: window.pokefoodSid, result: out }),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+    btn.textContent = 'sent ✓ check your phone';
+  } catch (e) {
+    console.error('send to phone failed:', e);
+    btn.textContent = 'failed — retry';
+  }
+  setTimeout(() => { btn.textContent = label; btn.disabled = false; }, 2500);
+}
+document.getElementById('send-phone-btn').addEventListener('click', () => sendCardToPhone());
+if (IS_MOBILE) {
+  document.getElementById('send-phone-btn').textContent = 'save to photos';
+  document.getElementById('lib-send-btn').textContent = 'save to photos';
+}
+
 async function addCardToLibrary() {
   const btn     = document.getElementById('lib-add-btn');
   const backBtn = document.getElementById('card-back-btn');
@@ -4143,7 +4265,7 @@ async function addCardToLibrary() {
     const calories = document.getElementById('cc-cal').textContent;
 
     const cards = libLoad();
-    cards.push({ id: Date.now(), timestamp: new Date().toISOString(), imageDataUrl, foodName, calories });
+    cards.push({ id: Date.now(), timestamp: new Date().toISOString(), imageDataUrl, foodName, calories, fx: getComputedStyle(document.documentElement).getPropertyValue('--model-fx').trim() });
     libSave(cards);
 
     // Re-enable before exit so next card open finds buttons ready
@@ -4162,6 +4284,46 @@ async function addCardToLibrary() {
   }
 }
 
+// Keeps saved cards in step with the current --model-fx look. Each card records the filter it was
+// last given (c.fx); a card with a different one gets only the difference applied to its model frame.
+// (Legacy fx:1 = the first lift, saturate 1.3 / brightness 1.25 / contrast 1.15; no fx = nothing applied.)
+function fxNums(str) {
+  const g = n => { const m = new RegExp(n + '\\(([\\d.]+)\\)').exec(str || ''); return m ? parseFloat(m[1]) : 1; };
+  return { sat: g('saturate'), br: g('brightness'), ct: g('contrast') };
+}
+async function libUpgradeOldCards() {
+  const fx = getComputedStyle(document.documentElement).getPropertyValue('--model-fx').trim();
+  const cards = libLoad();
+  if (!fx || !cards.some(c => c.fx !== fx)) return;
+  const card = document.getElementById('food-card'), area = document.getElementById('card-model-area');
+  const cr = card.getBoundingClientRect(), mr = area.getBoundingClientRect();
+  if (!cr.width || !mr.height) return;
+  const to = fxNums(fx);
+  for (const c of cards) {
+    if (c.fx === fx) continue;
+    const from = c.fx === 1 ? { sat: 1.3, br: 1.25, ct: 1.15 } : fxNums(c.fx);
+    const delta = `saturate(${(to.sat / from.sat).toFixed(3)}) brightness(${(to.br / from.br).toFixed(3)}) contrast(${(to.ct / from.ct).toFixed(3)})`;
+    try {
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = c.imageDataUrl; });
+      const k = img.naturalWidth / cr.width;
+      const mx = Math.round((mr.left - cr.left) * k), my = Math.round((mr.top - cr.top) * k);
+      const mw = Math.round(mr.width * k),            mh = Math.round(mr.height * k);
+      const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const part = document.createElement('canvas'); part.width = mw; part.height = mh;
+      const pctx = part.getContext('2d');
+      pctx.filter = delta;
+      pctx.drawImage(img, mx, my, mw, mh, 0, 0, mw, mh);
+      ctx.drawImage(part, mx, my);
+      c.imageDataUrl = cv.toDataURL('image/jpeg', 0.95);
+      c.fx = fx;
+    } catch (e) { console.warn('library upgrade skipped a card', e); }
+  }
+  libSave(cards);
+  libRenderDock();
+}
 function libRenderDock() {
   const dock = document.getElementById('lib-dock');
   dock.innerHTML = '';
@@ -4222,101 +4384,64 @@ function libClose() {
   setTimeout(() => { overlay.style.display = 'none'; }, 320);
 }
 
-// ── Long-press delete menu ────────────────────────────────────────────────────
-let libMenuTargetId = null;
-const LONG_PRESS_MS = 550;
-
-function libShowMenu(cardId, anchorEl) {
-  libMenuTargetId = cardId;
-  const menu = document.getElementById('lib-delete-menu');
-  const r = anchorEl.getBoundingClientRect();
-  // Position menu centred above the card, clamped to viewport
-  let left = r.left + r.width / 2 - 90;
-  let top  = r.top - 54;
-  left = Math.max(8, Math.min(left, window.innerWidth  - 188));
-  top  = Math.max(8, Math.min(top,  window.innerHeight - 60));
-  menu.style.left = left + 'px';
-  menu.style.top  = top  + 'px';
-  menu.classList.add('lib-menu-open');
+// ── Drag a card onto the trash can (bottom centre) to delete it ───────────────
+function libTrashHit(x, y) {
+  const r = document.getElementById('lib-trash').getBoundingClientRect();
+  const m = 18; // forgiving drop zone
+  return x >= r.left - m && x <= r.right + m && y >= r.top - m && y <= r.bottom + m;
 }
 
-function libHideMenu() {
-  document.getElementById('lib-delete-menu').classList.remove('lib-menu-open');
-  // Remove highlight from all items
-  document.querySelectorAll('.lib-card-item.lib-long-pressed')
-    .forEach(el => el.classList.remove('lib-long-pressed'));
-  libMenuTargetId = null;
-}
+function libAttachDrag(item, card) {
+  const trash = document.getElementById('lib-trash');
+  let sx = 0, sy = 0, dragging = false, ghost = null, pid = null, pressed = false;
 
-document.getElementById('lib-delete-btn').addEventListener('click', () => {
-  if (!libMenuTargetId) return;
-  const cards = libLoad().filter(c => c.id !== libMenuTargetId);
-  libSave(cards);
-  libHideMenu();
-  libRenderGrid();
-  libRenderDock();
-});
-
-// Close menu when clicking outside
-document.addEventListener('pointerdown', e => {
-  const menu = document.getElementById('lib-delete-menu');
-  if (!menu.classList.contains('lib-menu-open')) return;
-  if (!menu.contains(e.target)) libHideMenu();
-}, true);
-
-function libAttachLongPress(item, card) {
-  let pressTimer = null;
-  let didLongPress = false;
-  let startX = 0, startY = 0;
-
-  const cancel = () => {
-    clearTimeout(pressTimer);
-    pressTimer = null;
-    item.classList.remove('lib-long-pressed');
-  };
-
-  const onDown = e => {
-    didLongPress = false;
-    startX = (e.touches ? e.touches[0].clientX : e.clientX);
-    startY = (e.touches ? e.touches[0].clientY : e.clientY);
-    pressTimer = setTimeout(() => {
-      didLongPress = true;
-      item.classList.add('lib-long-pressed');
-      if (navigator.vibrate) navigator.vibrate(30);
-      libShowMenu(card.id, item);
-    }, LONG_PRESS_MS);
-  };
-
-  const onMove = e => {
-    const cx = (e.touches ? e.touches[0].clientX : e.clientX);
-    const cy = (e.touches ? e.touches[0].clientY : e.clientY);
-    if (Math.abs(cx - startX) > 8 || Math.abs(cy - startY) > 8) cancel();
-  };
-
-  const onUp = e => {
-    cancel();
-    // If long press fired, suppress the click so card doesn't zoom open
-    if (didLongPress) {
-      didLongPress = false;
-      e.stopPropagation();
-      e.preventDefault();
+  item.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    pressed = true; dragging = false; pid = e.pointerId; sx = e.clientX; sy = e.clientY;
+  });
+  item.addEventListener('pointermove', e => {
+    if (!pressed || e.pointerId !== pid) return;
+    if (!dragging) {
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) < 8) return;
+      dragging = true;
+      item.setPointerCapture(pid);
+      const r = item.getBoundingClientRect();
+      ghost = document.createElement('img');
+      ghost.src = card.imageDataUrl;
+      ghost.style.cssText = `position:fixed;z-index:1200;pointer-events:none;width:${r.width * .6}px;` +
+        'height:auto;opacity:.92;box-shadow:0 14px 40px rgba(0,0,0,.7);transform:translate(-50%,-50%) rotate(-4deg);';
+      document.body.appendChild(ghost);
+      item.style.opacity = '.25';
+      trash.classList.add('armed');
+    }
+    ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px';
+    trash.classList.toggle('hot', libTrashHit(e.clientX, e.clientY));
+  });
+  const end = e => {
+    if (!pressed || e.pointerId !== pid) return;
+    pressed = false;
+    if (!dragging) return;                       // plain click → normal zoom handler
+    dragging = false;
+    const drop = e.type === 'pointerup' && libTrashHit(e.clientX, e.clientY);
+    if (ghost) { ghost.remove(); ghost = null; }
+    item.style.opacity = '';
+    trash.classList.remove('armed', 'hot');
+    // swallow the click that follows a drag
+    item.addEventListener('click', ev => ev.stopImmediatePropagation(), { capture: true, once: true });
+    if (drop) {
+      libSave(libLoad().filter(c => c.id !== card.id));
+      libRenderGrid();
+      libRenderDock();
     }
   };
-
-  item.addEventListener('mousedown',  onDown);
-  item.addEventListener('touchstart', onDown, { passive: true });
-  item.addEventListener('mousemove',  onMove);
-  item.addEventListener('touchmove',  onMove, { passive: true });
-  item.addEventListener('mouseup',    onUp);
-  item.addEventListener('touchend',   onUp);
-  item.addEventListener('mouseleave', cancel);
-  item.addEventListener('contextmenu', e => e.preventDefault()); // suppress browser ctx menu on long press
+  item.addEventListener('pointerup', end);
+  item.addEventListener('pointercancel', end);
+  item.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 function libRenderGrid() {
   const grid = document.getElementById('lib-grid');
   grid.innerHTML = '';
-  libHideMenu();
   const cards = libLoad();
 
   if (!cards.length) {
@@ -4337,13 +4462,8 @@ function libRenderGrid() {
     img.draggable = false;
 
     item.appendChild(img);
-    item.addEventListener('click', () => {
-      if (document.getElementById('lib-delete-menu').classList.contains('lib-menu-open')) {
-        libHideMenu(); return;
-      }
-      libZoomOpen(card);
-    });
-    libAttachLongPress(item, card);
+    item.addEventListener('click', () => libZoomOpen(card));
+    libAttachDrag(item, card);
     grid.appendChild(item);
   });
 }
@@ -4404,6 +4524,11 @@ function libZoomOpen(card) {
     tmpImg.src = card.imageDataUrl;
   };
 
+  document.getElementById('lib-send-btn').onclick = e => {
+    e.stopPropagation();
+    sendCardToPhone(e.currentTarget, card.imageDataUrl);
+  };
+
   overlay.style.display = 'flex';
   requestAnimationFrame(() => overlay.classList.add('lib-open'));
 }
@@ -4435,6 +4560,7 @@ document.addEventListener('keydown', e => {
 
 // Restore dock on page load
 libRenderDock();
+setTimeout(libUpgradeOldCards, 600);
 
 // ── TEST MODE (temporary) ────────────────────────────────────────────────
 // Button at top-right feeds test/sample.jpg through the normal upload pipeline.
@@ -4448,9 +4574,10 @@ if (TEST_MODE) {
     btn.textContent = 'loading…';
     try {
       const blob = await (await fetch('test/sample.jpg')).blob();
+      testRunMock = true;   // only this run skips the API
       await handleFile(new File([blob], 'sample.jpg', { type: blob.type || 'image/jpeg' }));
     } catch (e) { showErr('Test load failed: ' + e.message); }
-    finally { btn.disabled = false; btn.textContent = label; }
+    finally { testRunMock = false; btn.disabled = false; btn.textContent = label; }
   });
 }
 

@@ -23,6 +23,13 @@
   #preview { max-width: 100%; max-height: 40vh; display: none; border: 1px solid #000; }
   #status { font-size: 15px; color: #444; min-height: 1.4em; }
   #status.err { color: #b00020; }
+  #result { display: none; width: 100%; max-width: 340px; flex-direction: column; gap: .9rem; align-items: center; }
+  #result img { width: 100%; height: auto; border: 1px solid #000; }
+  #result button {
+    width: 100%; padding: 1.1rem; background: #000; color: #fff; border: 1px solid #000;
+    font: inherit; font-size: 16px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
+  }
+  #result small { font-size: 13px; color: #666; }
 </style>
 </head>
 <body>
@@ -30,6 +37,11 @@
   <label class="pick">choose / take photo<input type="file" id="file" accept="image/*"></label>
   <img id="preview" alt="">
   <div id="status"></div>
+  <div id="result">
+    <img id="card-img" alt="your card">
+    <button id="save-btn">save to photos</button>
+    <small>if nothing happens, press and hold the card and choose “Save Image”</small>
+  </div>
 
 <script>
 const sid = new URLSearchParams(location.search).get('s') || '';
@@ -64,6 +76,9 @@ document.getElementById('file').addEventListener('change', async e => {
   if (!f || !sid) return;
   try {
     say('sending…');
+    // ignore any card from an earlier round; only a newly sent one should show up
+    document.getElementById('result').style.display = 'none';
+    try { cardUrl = (await (await fetch('/api/session?kind=result&id=' + encodeURIComponent(sid), { cache: 'no-store' })).json()).image || ''; } catch (e) {}
     const image = await compress(f);
     const p = document.getElementById('preview');
     p.src = image; p.style.display = 'block';
@@ -74,9 +89,48 @@ document.getElementById('file').addEventListener('change', async e => {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || `upload failed (${r.status})`);
-    say('sent — look at your computer ✓');
+    say('sent — look at your computer ✓ · your card will appear here when it’s ready');
+    waitForCard();
   } catch (err) {
     say(err.message, true);
+  }
+});
+
+// Wait for the desktop to send the finished card back, then offer it for saving
+let polling = false, cardUrl = '';
+function waitForCard() {
+  if (polling) return;
+  polling = true;
+  const t = setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const r = await fetch('/api/session?kind=result&id=' + encodeURIComponent(sid), { cache: 'no-store' });
+      const { image } = await r.json();
+      if (!image || image === cardUrl) return;
+      cardUrl = image;
+      document.getElementById('card-img').src = image;
+      document.getElementById('result').style.display = 'flex';
+      document.getElementById('preview').style.display = 'none';
+      say('your card is ready ✓');
+    } catch (e) {}
+  }, 2000);
+}
+if (sid) waitForCard();
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  try {
+    const blob = await (await fetch(cardUrl)).blob();
+    const file = new File([blob], 'pokefood-card.jpg', { type: blob.type || 'image/jpeg' });
+    // iOS / Android share sheet → "Save Image" puts it straight into the photo library
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] });
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'pokefood-card.jpg';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) {
+    if (e.name !== 'AbortError') say('Could not save — press and hold the card and choose “Save Image”.', true);
   }
 });
 </script>
