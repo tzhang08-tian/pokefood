@@ -228,7 +228,10 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 /* Card view on a phone: filters across the top, bigger; back / save / add in a swipe-up tray */
 #cv-tray { display: none; }
 .is-mobile #card-back-btn, .is-mobile #send-phone-btn, .is-mobile #lib-add-btn { display: none !important; }
-.is-mobile #card-view { padding: 96px 0 52px; box-sizing: border-box; }
+.is-mobile #card-view { padding: 96px 0 48px; box-sizing: border-box; justify-content: flex-start; touch-action: none; }
+/* Keep the card at its true size: never let the flex column squash it; spare room is split above/below,
+   and on a short screen it simply runs under the swipe handle instead of being cut short. */
+.is-mobile #card-view .food-card { flex-shrink: 0; margin-top: auto; margin-bottom: auto; }
 .is-mobile #cv-tray {
   display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 335;
   background: rgba(0,0,40,.97); border-top: 1px solid #fff;
@@ -3935,6 +3938,7 @@ const TUT_STEPS = [
 ];
 let tutIdx = -1;
 if (IS_MOBILE) {
+  TUT_STEPS[2].text = 'Tap any text (name, numbers, nutrient names), then tap the model: the text takes the colour you pick from it. With the text selected, pinch with two fingers to resize it.';
   TUT_STEPS[TUT_STEPS.length - 1] = { sel: '#cv-handle', text: 'Swipe up here to go back, save the card to your photos, or add it to your cards.' };
 }
 function tutShow(i) {
@@ -4256,6 +4260,34 @@ document.getElementById('card-view').addEventListener('wheel', e => {
   const next = Math.min(lim.max, Math.max(lim.min, cur + (e.deltaY < 0 ? 1 : -1)));
   selectedCardEl.style.fontSize = next + 'px';
 }, { passive: false });
+
+// Phone: with a text element selected, a two-finger pinch anywhere on the card view resizes it
+if (IS_MOBILE) {
+  const cvEl = document.getElementById('card-view');
+  let pin = null, noClickUntil = 0;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  const textSelected = () => selectedCardEl && (cvPickProp === 'color' || cvPickProp === 'cal-text');
+  cvEl.addEventListener('touchstart', e => {
+    if (e.touches.length === 2 && cardViewActive && textSelected()) {
+      pin = { d: dist(e.touches), size: parseFloat(getComputedStyle(selectedCardEl).fontSize) };
+      e.preventDefault();
+    }
+  }, { passive: false });
+  cvEl.addEventListener('touchmove', e => {
+    if (!pin || e.touches.length !== 2 || !textSelected()) return;
+    e.preventDefault();
+    const lim = cvFontLimits(selectedCardEl);
+    const next = Math.min(lim.max, Math.max(lim.min, pin.size * dist(e.touches) / pin.d));
+    selectedCardEl.style.fontSize = next.toFixed(1) + 'px';
+    noClickUntil = Date.now() + 500;
+  }, { passive: false });
+  const endPinch = e => { if (pin && e.touches.length < 2) { pin = null; noClickUntil = Date.now() + 500; } };
+  cvEl.addEventListener('touchend', endPinch);
+  cvEl.addEventListener('touchcancel', endPinch);
+  // the lifted finger must not count as a tap (it would change the selection)
+  cvEl.addEventListener('click', e => { if (Date.now() < noClickUntil) { e.stopPropagation(); e.preventDefault(); } }, true);
+  document.addEventListener('gesturestart', e => { if (cardViewActive) e.preventDefault(); });
+}
 
 // ── Card Library ─────────────────────────────────────────────────────────────
 const LIB_KEY = 'crazyfood_library';
