@@ -212,21 +212,58 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 .is-mobile #lib-dock { display: none !important; }
 .is-mobile #lib-download-btn { display: none; }
 #bg-swatches {
-  display: none; position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 330;
-  gap: 6px; padding: 8px; background: #fff; border: 1px solid #000; max-width: calc(100vw - 16px);
+  display: none; position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 330;
+  flex-direction: column; gap: 10px; padding: 8px; background: #fff; border: 1px solid #000;
+  max-width: calc(100vw - 16px);
 }
 #bg-swatches.on { display: flex; }
-#bg-swatches button {
-  width: 26px; height: 26px; padding: 0; border-radius: 0; border: 1px solid #000; cursor: pointer; flex: none;
+#bg-row { display: flex; gap: 6px; }
+#bg-row button { width: 30px; height: 30px; padding: 0; border-radius: 0; border: 1px solid #000; cursor: pointer; flex: none; }
+#bg-custom { display: none; flex-direction: column; gap: 4px; }
+#bg-custom.on { display: flex; }
+#bg-custom input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 30px; border: 1px solid #000; margin: 0; }
+#bg-custom input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 30px; background: #fff; border: 2px solid #000; }
+#bg-custom input[type=range]::-moz-range-thumb { width: 8px; height: 26px; background: #fff; border: 2px solid #000; border-radius: 0; }
+#bg-hue { background: linear-gradient(90deg, hsl(0,75%,50%), hsl(60,75%,50%), hsl(120,75%,50%), hsl(180,75%,50%), hsl(240,75%,50%), hsl(300,75%,50%), hsl(360,75%,50%)); }
+/* Card view on a phone: filters across the top, bigger; back / save / add in a swipe-up tray */
+#cv-tray { display: none; }
+.is-mobile #card-back-btn, .is-mobile #send-phone-btn, .is-mobile #lib-add-btn { display: none !important; }
+.is-mobile #card-view { padding: 96px 0 52px; box-sizing: border-box; }
+.is-mobile #cv-tray {
+  display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 335;
+  background: rgba(0,0,40,.97); border-top: 1px solid #fff;
+  transform: translateY(calc(100% - 44px)); transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  padding-bottom: env(safe-area-inset-bottom);
 }
+.is-mobile #cv-tray.dragging { transition: none; }
+.is-mobile #cv-tray.open { transform: none; }
+#cv-handle {
+  height: 44px; display: flex; align-items: center; justify-content: center; touch-action: none; cursor: pointer; color: #fff;
+  font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .16em; text-transform: uppercase;
+}
+#cv-tray-btns { display: flex; flex-direction: column; gap: 10px; padding: 6px 16px 18px; }
+#cv-tray-btns button {
+  width: 100%; padding: 1rem .8rem; border-radius: 0; background: transparent; color: #fff; border: 1px solid #fff;
+  font: 400 16px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .12em; text-transform: uppercase;
+}
+#cv-tray-btns button:active { background: #fff; color: #000; }
+#cv-tray-btns button:disabled { opacity: .5; }
+/* Filter sliders: bigger touch targets */
+.is-mobile #model-console { width: min(360px, calc(100vw - 16px)); }
+.is-mobile #model-console label { padding: .45rem .7rem; font-size: 13px; gap: .4rem; }
+.is-mobile #model-console input[type=range] { width: 92px; height: 32px; background: none; }
+.is-mobile #model-console input[type=range]::-webkit-slider-runnable-track { height: 32px; background: linear-gradient(#000,#000) center / 100% 2px no-repeat; }
+.is-mobile #model-console input[type=range]::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: 5px; }
+.is-mobile #model-console input[type=range]::-moz-range-track { height: 2px; background: #000; }
+.is-mobile #model-console input[type=range]::-moz-range-thumb { width: 22px; height: 22px; }
+.is-mobile #model-console.in-card { top: 8px; bottom: auto; }
+.is-mobile #hint-3d { bottom: 168px !important; }
 #m-name { font: 400 30px/1.15 'Lobster', cursive; -webkit-text-stroke: 1.5px #1a1a1a; paint-order: stroke fill; margin-bottom: .8rem; }
 #m-desc { font: 400 15px/1.65 'Ubuntu', sans-serif; letter-spacing: .02em; opacity: .92; }
 /* Filter sliders: 2 x 2 so the box fits a phone screen, sitting above the swipe handle */
 .is-mobile #model-console { flex-wrap: wrap; width: min(300px, calc(100vw - 16px)); bottom: 52px; }
 .is-mobile #model-console label { flex: 1 1 50%; box-sizing: border-box; justify-content: space-between; padding: .3rem .55rem; font-size: 11px; }
 .is-mobile #model-console input[type=range] { width: 64px; }
-.is-mobile #model-console.in-card { bottom: .6rem; }
-.is-mobile #hint-3d { bottom: 132px !important; }
 .is-mobile #hint-3d::after { content: 'drag to rotate · pinch to zoom'; font-size: 10px; }
 .ph-qr { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 @keyframes phColor {
@@ -1110,7 +1147,13 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 <input type="color" id="cv-bg-input" value="#08080e" style="position:fixed;left:-200px;top:-200px;width:1px;height:1px;opacity:0;">
 
 <!-- Phone: tap the model's background in card view to pick its colour -->
-<div id="bg-swatches" aria-label="model background colour"></div>
+<div id="bg-swatches" aria-label="model background colour">
+  <div id="bg-row"></div>
+  <div id="bg-custom">
+    <input type="range" id="bg-hue" min="0" max="360" value="220" aria-label="hue">
+    <input type="range" id="bg-light" min="0" max="100" value="45" aria-label="brightness">
+  </div>
+</div>
 
 <!-- Card view overlay -->
 <div id="card-view">
@@ -1122,6 +1165,15 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
       <line x1="4" y1="11" x2="18" y2="11"/>
     </svg>
   </button>
+  <!-- Phone: back / save / add live in a swipe-up tray so nothing sits on top of the card -->
+  <div id="cv-tray">
+    <div id="cv-handle"><span id="cv-handle-txt">▲ swipe up</span></div>
+    <div id="cv-tray-btns">
+      <button type="button" id="cv-back">← back</button>
+      <button type="button" id="cv-save">save to photos</button>
+      <button type="button" id="cv-add">+ add to my cards</button>
+    </div>
+  </div>
   <div class="food-card cv-selectable" id="food-card" data-pick-prop="border-color">
     <div class="card-hdr cv-selectable" id="card-hdr" data-pick-prop="background">
       <span class="card-badge cv-selectable" id="cc-badge" data-pick-prop="background">BASIC</span>
@@ -3201,6 +3253,46 @@ function setStep(n, state) {
   el.classList.remove('active','done');
   if (state) el.classList.add(state);
 }
+// ── Phone card view: swipe-up tray with back / save / add ──────────────────
+let cvTrayOpen = false;
+function cvTraySet(open) {
+  cvTrayOpen = open;
+  const t = document.getElementById('cv-tray');
+  t.classList.remove('dragging'); t.style.transform = '';
+  t.classList.toggle('open', open);
+  document.getElementById('cv-handle-txt').textContent = open ? '▼ swipe down' : '▲ swipe up';
+  if (open) document.getElementById('bg-swatches').classList.remove('on');
+}
+if (IS_MOBILE) {
+  const tray = document.getElementById('cv-tray'), handle = document.getElementById('cv-handle');
+  let startY = 0, startOff = 0, curOff = 0, moved = 0, h = 0, active = false;
+  handle.addEventListener('pointerdown', e => {
+    h = tray.offsetHeight - 44; startY = e.clientY; startOff = cvTrayOpen ? 0 : h; curOff = startOff;   // offset = how far the tray is pushed down
+    moved = 0; active = true; handle.setPointerCapture(e.pointerId); tray.classList.add('dragging');
+  });
+  handle.addEventListener('pointermove', e => {
+    if (!active) return;
+    const dy = e.clientY - startY; moved = Math.max(moved, Math.abs(dy));
+    curOff = Math.min(h, Math.max(0, startOff + dy));
+    tray.style.transform = `translateY(${curOff}px)`;
+  });
+  const end = () => {
+    if (!active) return; active = false;
+    if (moved < 6) cvTraySet(!cvTrayOpen);
+    else cvTraySet(cvTrayOpen ? curOff < h * 0.35 : curOff < h * 0.65);
+  };
+  handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
+
+  document.getElementById('cv-back').addEventListener('click', () => { cvTraySet(false); document.getElementById('card-back-btn').click(); });
+  document.getElementById('cv-save').addEventListener('click', async e => {
+    const b = e.currentTarget; cvTraySet(false);
+    await new Promise(r => setTimeout(r, 320));
+    b.disabled = true; const label = b.textContent; b.textContent = 'saving…';
+    try { await sendCardToPhone(document.getElementById('send-phone-btn')); } finally { b.disabled = false; b.textContent = label; }
+  });
+  document.getElementById('cv-add').addEventListener('click', () => { cvTraySet(false); document.getElementById('lib-add-btn').click(); });
+}
+
 // ── Phone swipe-up panel ──────────────────────────────────────────────────
 // Dragging the handle (or tapping it) pans the whole page up by the panel's height.
 let mSheetOpen = false;
@@ -3792,6 +3884,7 @@ function enterCardView() {
 function exitCardView(instant) {
   if (!cardViewActive) return;
   document.getElementById('bg-swatches').classList.remove('on');
+  cvTraySet(false);
   tutEnd();
   deselectCardEl();
   document.getElementById('card-view').classList.remove('cv-active');
@@ -3841,6 +3934,9 @@ const TUT_STEPS = [
   { sel: '#lib-add-btn',     text: 'Happy with the card? Click + to save it to your library.' },
 ];
 let tutIdx = -1;
+if (IS_MOBILE) {
+  TUT_STEPS[TUT_STEPS.length - 1] = { sel: '#cv-handle', text: 'Swipe up here to go back, save the card to your photos, or add it to your cards.' };
+}
 function tutShow(i) {
   const tut = document.getElementById('tut');
   if (!cardViewActive || i >= TUT_STEPS.length) { tutEnd(); return; }
@@ -4061,21 +4157,27 @@ document.getElementById('food-card').addEventListener('click', e => {
   if (IS_MOBILE) {
     const COLORS = ['#08080e', '#000000', '#ffffff', '#0000aa', '#c0392b', '#e08a1e', '#2e9e5b', '#7b4fd0', '#e9b5cf'];
     const apply = c => { modelArea.style.background = c; };
+    const row = document.getElementById('bg-row');
     COLORS.forEach(c => {
       const b = document.createElement('button');
       b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', c);
       b.addEventListener('click', e => { e.stopPropagation(); apply(c); });
-      swatches.appendChild(b);
+      row.appendChild(b);
     });
+    // Rainbow swatch: our own hue / brightness sliders (the native colour dialog is unreliable on phones)
     const custom = document.createElement('button');
     custom.type = 'button'; custom.setAttribute('aria-label', 'custom colour');
     custom.style.background = 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)';
-    custom.addEventListener('click', e => {
-      e.stopPropagation();
-      bgInput.value = rgbStrToHex(modelArea.style.background) || '#08080e';
-      bgInput.click();
-    });
-    swatches.appendChild(custom);
+    const panel = document.getElementById('bg-custom');
+    const hue = document.getElementById('bg-hue'), light = document.getElementById('bg-light');
+    const paintCustom = () => {
+      light.style.background = `linear-gradient(90deg, #000, hsl(${hue.value},80%,50%), #fff)`;
+      apply(`hsl(${hue.value}, 80%, ${light.value}%)`);
+    };
+    custom.addEventListener('click', e => { e.stopPropagation(); panel.classList.toggle('on'); if (panel.classList.contains('on')) paintCustom(); });
+    hue.addEventListener('input', paintCustom);
+    light.addEventListener('input', paintCustom);
+    row.appendChild(custom);
     modelArea.addEventListener('pointerdown', e => {
       tapStart = { x: e.clientX, y: e.clientY, bg: cardViewActive && !selectedCardEl && !isOverModel(e.clientX, e.clientY) };
     }, true);
