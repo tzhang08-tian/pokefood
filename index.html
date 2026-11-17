@@ -193,7 +193,7 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 }
 #m-sheet {
   position: absolute; left: 0; right: 0; top: 100%; z-index: 29;
-  background: var(--bg); color: #fff; border-top: 1px solid #fff; touch-action: none;
+  background: var(--bg); color: #fff; border-top: 1px solid #fff; touch-action: pan-y;
   padding: 1.3rem 1.4rem calc(2rem + env(safe-area-inset-bottom));
   max-height: 70dvh; overflow-y: auto;
 }
@@ -203,6 +203,22 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   font: 400 17px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .12em; text-transform: uppercase;
 }
 #m-card-btn:active { background: #bdbdbd; }
+#m-cards { margin-top: 1.8rem; }
+#m-cards-title, #m-cards-limit { font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+#m-cards-title { opacity: .8; margin-bottom: .6rem; }
+#m-cards-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+#m-cards-grid img { display: block; width: 100%; aspect-ratio: 174 / 243; object-fit: cover; border: 1px solid #fff; cursor: pointer; background: #000; }
+#m-cards-limit { margin-top: 1rem; text-align: center; }
+.is-mobile #lib-dock { display: none !important; }
+.is-mobile #lib-download-btn { display: none; }
+#bg-swatches {
+  display: none; position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 330;
+  gap: 6px; padding: 8px; background: #fff; border: 1px solid #000; max-width: calc(100vw - 16px);
+}
+#bg-swatches.on { display: flex; }
+#bg-swatches button {
+  width: 26px; height: 26px; padding: 0; border-radius: 0; border: 1px solid #000; cursor: pointer; flex: none;
+}
 #m-name { font: 400 30px/1.15 'Lobster', cursive; -webkit-text-stroke: 1.5px #1a1a1a; paint-order: stroke fill; margin-bottom: .8rem; }
 #m-desc { font: 400 15px/1.65 'Ubuntu', sans-serif; letter-spacing: .02em; opacity: .92; }
 /* Filter sliders: 2 x 2 so the box fits a phone screen, sitting above the swipe handle */
@@ -1093,6 +1109,9 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 <!-- Hidden native color input for model background picking -->
 <input type="color" id="cv-bg-input" value="#08080e" style="position:fixed;left:-200px;top:-200px;width:1px;height:1px;opacity:0;">
 
+<!-- Phone: tap the model's background in card view to pick its colour -->
+<div id="bg-swatches" aria-label="model background colour"></div>
+
 <!-- Card view overlay -->
 <div id="card-view">
   <button id="card-back-btn">← Back</button>
@@ -1120,7 +1139,7 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
     <div class="card-model-area cv-selectable" id="card-model-area" data-pick-prop="model-bg">
       <!-- hidden anchor for showPicker() — not interactive -->
       <input type="color" id="model-bg-color" tabindex="-1"
-        style="position:absolute;left:0;top:0;width:0;height:0;opacity:0;pointer-events:none;border:none;padding:0;">
+        style="position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:none;padding:0;">
       <!-- #three-mount is moved here on open -->
     </div>
     <div class="card-subhdr cv-selectable" id="cc-tagline" data-pick-prop="background">Nutrition Star</div>
@@ -1240,6 +1259,11 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
     <button id="m-card-btn" type="button">generate your card →</button>
     <div id="m-name"></div>
     <div id="m-desc"></div>
+    <div id="m-cards" style="display:none">
+      <div id="m-cards-title">your cards</div>
+      <div id="m-cards-grid"></div>
+      <div id="m-cards-limit"></div>
+    </div>
   </div>
 
 </div>
@@ -3210,7 +3234,7 @@ if (IS_MOBILE) {
     if (moved < 6) { if (fromHandle) mSheetSet(!mSheetOpen); else mSheetSet(mSheetOpen); return; }
     mSheetSet(mSheetOpen ? curOff > h * 0.65 : curOff > h * 0.35);
   };
-  for (const [el, isH] of [[handle, true], [sheet, false]]) {
+  for (const [el, isH] of [[handle, true]]) {
     el.addEventListener('pointerdown', e => begin(e, isH));
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', end);
@@ -3767,6 +3791,7 @@ function enterCardView() {
 
 function exitCardView(instant) {
   if (!cardViewActive) return;
+  document.getElementById('bg-swatches').classList.remove('on');
   tutEnd();
   deselectCardEl();
   document.getElementById('card-view').classList.remove('cv-active');
@@ -3937,7 +3962,7 @@ function selectCardEl(el) {
   // Model background uses its own dedicated picker panel — no crosshair mode
   if (cvPickProp === 'model-bg') {
     selectedCardEl = null; cvPickProp = '';
-    openModelBgPicker();
+    if (!IS_MOBILE) openModelBgPicker();   // phone: the swatch bar (tap on the background) handles this
     return;
   }
   selectedCardEl = el;
@@ -4029,7 +4054,40 @@ document.getElementById('food-card').addEventListener('click', e => {
   // Capture-phase pointerdown: intercept BEFORE OrbitControls receives the event.
   // If click is on the transparent background → open bg colour picker and block OrbitControls.
   // If click is on the 3D model → let it pass through so OrbitControls can rotate/zoom.
+  // Phone: a plain tap on the background opens a swatch bar (the native colour dialog can't be opened
+  // from pointerdown on touch screens). Drags still go to OrbitControls.
+  const swatches = document.getElementById('bg-swatches');
+  let tapStart = null;
+  if (IS_MOBILE) {
+    const COLORS = ['#08080e', '#000000', '#ffffff', '#0000aa', '#c0392b', '#e08a1e', '#2e9e5b', '#7b4fd0', '#e9b5cf'];
+    const apply = c => { modelArea.style.background = c; };
+    COLORS.forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.style.background = c; b.setAttribute('aria-label', c);
+      b.addEventListener('click', e => { e.stopPropagation(); apply(c); });
+      swatches.appendChild(b);
+    });
+    const custom = document.createElement('button');
+    custom.type = 'button'; custom.setAttribute('aria-label', 'custom colour');
+    custom.style.background = 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)';
+    custom.addEventListener('click', e => {
+      e.stopPropagation();
+      bgInput.value = rgbStrToHex(modelArea.style.background) || '#08080e';
+      bgInput.click();
+    });
+    swatches.appendChild(custom);
+    modelArea.addEventListener('pointerdown', e => {
+      tapStart = { x: e.clientX, y: e.clientY, bg: cardViewActive && !selectedCardEl && !isOverModel(e.clientX, e.clientY) };
+    }, true);
+    modelArea.addEventListener('click', e => {
+      if (!tapStart || !tapStart.bg) return;
+      if (Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) > 10) return;   // it was a drag
+      swatches.classList.toggle('on');
+    });
+  }
+
   modelArea.addEventListener('pointerdown', e => {
+    if (IS_MOBILE) return;
     if (!cardViewActive || e.button !== 0) return;
     if (selectedCardEl) return;   // colour-sampling mode — clicks go to the click handler below
 
@@ -4428,7 +4486,26 @@ async function libUpgradeOldCards() {
   libSave(cards);
   libRenderDock();
 }
+const M_MAX_CARDS = 10;
+// Phone: the user's cards as thumbnails at the bottom of the swipe-up panel (5 per row, up to 10)
+function renderMobileCards() {
+  if (!IS_MOBILE) return;
+  const cards = libLoad().slice(0, M_MAX_CARDS);
+  const box = document.getElementById('m-cards'), grid = document.getElementById('m-cards-grid');
+  grid.innerHTML = '';
+  box.style.display = cards.length ? 'block' : 'none';
+  cards.forEach(c => {
+    const img = document.createElement('img');
+    img.src = c.imageDataUrl; img.alt = c.foodName; img.draggable = false;
+    img.addEventListener('click', () => libZoomOpen(c));
+    grid.appendChild(img);
+  });
+  document.getElementById('m-cards-limit').textContent = cards.length >= M_MAX_CARDS ? "You've reached your limit" : '';
+  if (mSheetOpen) mSheetSet(true);   // panel height changed — keep it flush
+}
+
 function libRenderDock() {
+  renderMobileCards();
   const dock = document.getElementById('lib-dock');
   dock.innerHTML = '';
   const cards = libLoad();
