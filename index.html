@@ -174,6 +174,43 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 .is-mobile #lib-add-btn { right: 12px; }
 .is-mobile #send-phone-btn { right: 60px; padding: 0 .7rem; }
 .is-mobile #hint-3d { font-size: 0; }
+/* Phone layout after a model is generated: the dish name / blurb / card button live in a panel
+   below the screen; swiping up (or tapping the handle) pans the page up to reveal it. */
+.is-mobile .right, .is-mobile #reset-btn, .is-mobile #card-btn { display: none !important; }
+#m-sheet, #m-handle { display: none; }
+.is-mobile.has-results #m-sheet { display: block; }
+.is-mobile.has-results #m-handle { display: flex; }
+.is-mobile .char-panel, .is-mobile #m-sheet, .is-mobile #m-handle {
+  transform: translateY(var(--m-off, 0px));
+  transition: transform .35s cubic-bezier(.2,.8,.2,1);
+}
+.is-mobile .app.dragging .char-panel, .is-mobile .app.dragging #m-sheet, .is-mobile .app.dragging #m-handle { transition: none; }
+#m-handle {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 44px; z-index: 30;
+  align-items: center; justify-content: center; touch-action: none; cursor: pointer;
+  background: var(--bg); border-top: 1px solid #fff;
+  color: #fff; font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .16em; text-transform: uppercase;
+}
+#m-sheet {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 29;
+  background: var(--bg); color: #fff; border-top: 1px solid #fff; touch-action: none;
+  padding: 1.3rem 1.4rem calc(2rem + env(safe-area-inset-bottom));
+  max-height: 70dvh; overflow-y: auto;
+}
+#m-card-btn {
+  display: block; width: 100%; padding: 1rem .8rem; margin-bottom: 1.4rem; border-radius: 0;
+  background: #fff; color: #000; border: 1px solid #000;
+  font: 400 17px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .12em; text-transform: uppercase;
+}
+#m-card-btn:active { background: #bdbdbd; }
+#m-name { font: 400 30px/1.15 'Lobster', cursive; -webkit-text-stroke: 1.5px #1a1a1a; paint-order: stroke fill; margin-bottom: .8rem; }
+#m-desc { font: 400 15px/1.65 'Ubuntu', sans-serif; letter-spacing: .02em; opacity: .92; }
+/* Filter sliders: 2 x 2 so the box fits a phone screen, sitting above the swipe handle */
+.is-mobile #model-console { flex-wrap: wrap; width: min(300px, calc(100vw - 16px)); bottom: 52px; }
+.is-mobile #model-console label { flex: 1 1 50%; box-sizing: border-box; justify-content: space-between; padding: .3rem .55rem; font-size: 11px; }
+.is-mobile #model-console input[type=range] { width: 64px; }
+.is-mobile #model-console.in-card { bottom: .6rem; }
+.is-mobile #hint-3d { bottom: 132px !important; }
 .is-mobile #hint-3d::after { content: 'drag to rotate · pinch to zoom'; font-size: 10px; }
 .ph-qr { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 @keyframes phColor {
@@ -332,15 +369,6 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 #tut-skip { border-color: transparent !important; opacity: .6; padding-left: 0 !important; }
 #model-console.in-card { position: fixed; z-index: 320; bottom: 1rem; display: flex; }
 
-/* TEST MODE button */
-#test-btn {
-  position: fixed; top: 14px; left: 14px; z-index: 250;
-  padding: .45rem .9rem; cursor: pointer;
-  background: #fff; color: #000; border: 1px solid #000;
-  font: 400 13px 'Ubuntu Condensed', 'Ubuntu', sans-serif; letter-spacing: .08em; text-transform: uppercase;
-}
-#test-btn:hover { background: #000; color: #fff; }
-#test-btn:disabled { opacity: .4; cursor: default; }
 
 /* Text-effect control box, embedded in the background text */
 #retro-ctrl {
@@ -1056,9 +1084,6 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 </svg>
 
 <!-- Food Card button — top center, shown after results load -->
-<!-- TEST MODE (temporary): top-right button that runs the whole pipeline on test/sample.jpg.
-     Remove this button + the TEST MODE block in the script before the on-site launch. -->
-<button id="test-btn" style="display:none">test ▸ load sample</button>
 
 <button id="card-btn">generate your card <span class="cb-arrow">→</span></button>
 
@@ -1207,6 +1232,14 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
 
     <div id="personality"></div>
     <button class="ghost" id="reset-btn">Start over</button>
+  </div>
+
+  <!-- Phone only: swipe-up panel with the card button, dish name and blurb -->
+  <div id="m-handle"><span id="m-handle-txt">▲ swipe up</span></div>
+  <div id="m-sheet">
+    <button id="m-card-btn" type="button">generate your card →</button>
+    <div id="m-name"></div>
+    <div id="m-desc"></div>
   </div>
 
 </div>
@@ -1733,17 +1766,11 @@ const USE_MOCK_API = (() => {
   return ['localhost', '127.0.0.1'].includes(location.hostname);
 })();
 
-// One-shot: the TEST button sets this so only that run uses the saved sample result,
-// while QR / device uploads on the deployed site always go to the real /api/analyze.
-let testRunMock = false;
-
 // Whose card this is: the phone's device id for QR uploads, otherwise this browser's own id
 let personForNextRun = null;
 
 async function analyzeFood(b64, mime) {
-  const useMock = USE_MOCK_API || testRunMock;
-  testRunMock = false;
-  if (useMock) {
+  if (USE_MOCK_API) {
     console.info('[mock] using test/sample-analysis.json instead of /api/analyze');
     const [data] = await Promise.all([
       fetch('test/sample-analysis.json').then(r => {
@@ -3150,8 +3177,56 @@ function setStep(n, state) {
   el.classList.remove('active','done');
   if (state) el.classList.add(state);
 }
+// ── Phone swipe-up panel ──────────────────────────────────────────────────
+// Dragging the handle (or tapping it) pans the whole page up by the panel's height.
+let mSheetOpen = false;
+function mSheetSet(open) {
+  const app = document.querySelector('.app'), sheet = document.getElementById('m-sheet');
+  mSheetOpen = open;
+  app.classList.remove('dragging');
+  app.style.setProperty('--m-off', open ? -sheet.offsetHeight + 'px' : '0px');
+  document.getElementById('m-handle-txt').textContent = open ? '▼ swipe down' : '▲ swipe up';
+}
+if (IS_MOBILE) {
+  const app = document.querySelector('.app'), sheet = document.getElementById('m-sheet'), handle = document.getElementById('m-handle');
+  let startY = 0, startOff = 0, curOff = 0, moved = 0, h = 0, active = false, fromHandle = false;
+  const begin = (e, isHandle) => {
+    if (e.target.closest('button')) return;
+    h = sheet.offsetHeight; startY = e.clientY; startOff = mSheetOpen ? h : 0; curOff = startOff;
+    moved = 0; active = true; fromHandle = isHandle;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    app.classList.add('dragging');
+  };
+  const move = e => {
+    if (!active) return;
+    const dy = startY - e.clientY;
+    moved = Math.max(moved, Math.abs(dy));
+    curOff = Math.min(h, Math.max(0, startOff + dy));
+    app.style.setProperty('--m-off', -curOff + 'px');
+  };
+  const end = () => {
+    if (!active) return;
+    active = false;
+    if (moved < 6) { if (fromHandle) mSheetSet(!mSheetOpen); else mSheetSet(mSheetOpen); return; }
+    mSheetSet(mSheetOpen ? curOff > h * 0.65 : curOff > h * 0.35);
+  };
+  for (const [el, isH] of [[handle, true], [sheet, false]]) {
+    el.addEventListener('pointerdown', e => begin(e, isH));
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+  document.getElementById('m-card-btn').addEventListener('click', () => {
+    mSheetSet(false);
+    document.getElementById('card-btn').click();
+  });
+}
+
 function showResults(data) {
   currentData = data;
+  document.getElementById('m-name').textContent = data.name || '';
+  document.getElementById('m-desc').textContent = data.personality || '';
+  document.body.classList.add('has-results');
   document.getElementById('food-name').style.display  = 'block';
   document.getElementById('food-name').textContent    = data.name || '';
   document.getElementById('personality').style.display = 'block';
@@ -3161,6 +3236,8 @@ function showResults(data) {
 }
 function hideResults() {
   stopSpeechStream();
+  document.body.classList.remove('has-results');
+  mSheetSet(false);
   currentData = null;
   document.getElementById('card-btn').classList.remove('cb-show');
   ['food-name','personality','reset-btn'].forEach(id => {
@@ -4588,25 +4665,6 @@ document.addEventListener('keydown', e => {
 // Restore dock on page load
 libRenderDock();
 setTimeout(libUpgradeOldCards, 600);
-
-// ── TEST MODE (temporary) ────────────────────────────────────────────────
-// Button at top-right feeds test/sample.jpg through the normal upload pipeline.
-const TEST_MODE = true;   // set to false (or delete this block) before the on-site launch
-if (TEST_MODE) {
-  const btn = document.getElementById('test-btn');
-  btn.style.display = 'block';
-  btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    const label = btn.textContent;
-    btn.textContent = 'loading…';
-    try {
-      const blob = await (await fetch('test/sample.jpg')).blob();
-      testRunMock = true;   // only this run skips the API
-      await handleFile(new File([blob], 'sample.jpg', { type: blob.type || 'image/jpeg' }));
-    } catch (e) { showErr('Test load failed: ' + e.message); }
-    finally { testRunMock = false; btn.disabled = false; btn.textContent = label; }
-  });
-}
 
 function resetAll() {
   if (cardViewActive) exitCardView(true);
