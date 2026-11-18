@@ -212,7 +212,7 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 .is-mobile #lib-dock { display: none !important; }
 .is-mobile #lib-download-btn { display: none; }
 #bg-swatches {
-  display: none; position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 330;
+  display: none; position: fixed; left: 50%; bottom: calc(56px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 330;
   flex-direction: column; gap: 10px; padding: 8px; background: #fff; border: 1px solid #000;
   max-width: calc(100vw - 16px);
 }
@@ -229,7 +229,7 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 #cv-tray { display: none; }
 .is-mobile #card-back-btn, .is-mobile #send-phone-btn, .is-mobile #lib-add-btn { display: none !important; }
 .is-mobile #card-view {
-  padding: 96px 0 64px; box-sizing: border-box; justify-content: flex-start;
+  padding: 96px 0 calc(44px + env(safe-area-inset-bottom) + 28px); box-sizing: border-box; justify-content: flex-start;
   overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain;
   perspective: none !important;   /* a perspective box would make the fixed tray scroll with the content */
 }
@@ -255,6 +255,8 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 }
 #cv-tray-btns button:active { background: #fff; color: #000; }
 #cv-tray-btns button:disabled { opacity: .5; }
+/* colour bar open: leave room so it never sits on the card */
+.is-mobile:has(#bg-swatches.on) #card-view { padding-bottom: calc(44px + env(safe-area-inset-bottom) + 28px + 150px); }
 /* Filter sliders: bigger touch targets */
 .is-mobile #model-console { width: min(360px, calc(100vw - 16px)); }
 .is-mobile #model-console label { padding: .45rem .7rem; font-size: 13px; gap: .4rem; }
