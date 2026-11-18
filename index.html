@@ -228,7 +228,11 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 /* Card view on a phone: filters across the top, bigger; back / save / add in a swipe-up tray */
 #cv-tray { display: none; }
 .is-mobile #card-back-btn, .is-mobile #send-phone-btn, .is-mobile #lib-add-btn { display: none !important; }
-.is-mobile #card-view { padding: 96px 0 48px; box-sizing: border-box; justify-content: flex-start; touch-action: none; }
+.is-mobile #card-view {
+  padding: 96px 0 64px; box-sizing: border-box; justify-content: flex-start;
+  overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain;
+  perspective: none !important;   /* a perspective box would make the fixed tray scroll with the content */
+}
 /* Keep the card at its true size: never let the flex column squash it; spare room is split above/below,
    and on a short screen it simply runs under the swipe handle instead of being cut short. */
 .is-mobile #card-view .food-card { flex-shrink: 0; margin-top: auto; margin-bottom: auto; }
@@ -647,7 +651,7 @@ button.ghost:hover { border-color: var(--border-hi); color: #333; }
   color: hsl(0,45%,58%);
   animation: phColor 5s linear infinite -1.2s;
   flex: 1; text-align: center;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: normal; overflow-wrap: anywhere; line-height: 1.12;   /* long names wrap instead of being cut with … */
 }
 .card-type-icon { display: none; }
 /* Cal oval — direct child of food-card, floats above WebGL canvas */
@@ -3874,6 +3878,7 @@ function enterCardView() {
   if (cardRaf) cancelAnimationFrame(cardRaf);
 
   // Show overlay
+  document.getElementById('card-view').scrollTop = 0;
   document.getElementById('card-view').classList.add('cv-active');
   document.getElementById('card-btn').classList.remove('cb-show');
   cardViewActive = true;

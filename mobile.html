@@ -52,6 +52,13 @@ if (!/^[A-Za-z0-9_-]{8,64}$/.test(pid)) {
   pid = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
   try { localStorage.setItem('cf_user_id', pid); } catch (e) {}
 }
+// Owner helper: open mobile.html?myid to see this device's id (for UNLIMITED_IDS on the server)
+if (new URLSearchParams(location.search).has('myid')) {
+  const b = document.createElement('div');
+  b.style.cssText = 'position:fixed;inset:auto 12px 12px 12px;background:#fff;color:#000;padding:12px;border-radius:10px;font:13px monospace;word-break:break-all;z-index:99;user-select:all';
+  b.textContent = pid;
+  document.body.appendChild(b);
+}
 const statusEl = document.getElementById('status');
 const say = (t, err) => { statusEl.textContent = t; statusEl.className = err ? 'err' : ''; };
 if (!sid) say('This link is missing its session code — scan the QR code again.', true);
