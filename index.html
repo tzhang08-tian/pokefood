@@ -116,11 +116,15 @@ input[type=password]:focus { border-color: var(--gray-mid); }
   filter: url(#retro-text-filter); /* only the text is filtered */
 }
 /* ASCII-art renderings of each nutrient's 3D model, embedded in the flowing text */
+.ph-art { display: inline-block; vertical-align: middle; margin: .3em 1.4em; text-align: center; }
 .ph-ascii {
-  display: inline-block; vertical-align: middle;
-  margin: .3em 1.4em;
+  display: block; margin: 0;
   font: 700 15px/1 Menlo, 'Courier New', monospace;
   letter-spacing: 0; text-align: left; white-space: pre;
+}
+.ph-art-name {
+  margin-top: 8px; font: 400 15px/1 'Ubuntu Condensed', 'Ubuntu', sans-serif;
+  letter-spacing: .2em; text-transform: uppercase; white-space: nowrap;
 }
 /* Two identical blocks stacked; the strip drifts up slowly (page scrolling down), looping seamlessly */
 #ph-flow {
@@ -163,6 +167,13 @@ input[type=password]:focus { border-color: var(--gray-mid); }
 #ph-qr { position: relative; z-index: 1; transform: translateX(5px); }
 #retro-ctrl { position: relative; z-index: 2; transform: translate(14px, -10px) rotate(.5deg); }
 .is-mobile #ph-upload-btn { margin-bottom: 0; }
+/* Phone: smaller background text and loading code, but bigger nutrient art */
+.is-mobile #placeholder-text { font-size: 15px; }
+.is-mobile #ph-flow > div { padding: 0 16px; }
+.is-mobile #ph-loading { font-size: 9px; padding: 10px 14px; }
+.is-mobile .ph-art { margin: .3em .5em; }
+.is-mobile .ph-ascii { font-size: min(17px, calc((100vw - 56px) / 19.6)); }
+.is-mobile .ph-art-name { font-size: 13px; margin-top: 6px; }
 #ph-upload-btn:hover { background: #bdbdbd; color: #000; opacity: 1; }
 #ph-upload-btn:disabled { opacity: .5; }
 /* Phone mode (page opened directly on a phone): no QR to scan, bigger touch targets, dynamic viewport */
@@ -2260,8 +2271,71 @@ function buildBaseGeometry(cat) {
   return new THREE.SphereGeometry(1.5, 20, 14);
 }
 
+// ── Surface sampling: random points ON the faces (not just vertices); each nutrient gets its own
+// patchy hot-spots + loose scatter, so the decorations never look evenly sprinkled. ──
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+function buildSurfaceSampler(geo, N = 2600) {
+  const pos = geo.attributes.position, idx = geo.index;
+  const triN = (idx ? idx.count : pos.count) / 3;
+  const tris = []; let total = 0;
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+  for (let t = 0; t < triN; t++) {
+    const ia = idx ? idx.getX(t*3) : t*3, ib = idx ? idx.getX(t*3+1) : t*3+1, ic = idx ? idx.getX(t*3+2) : t*3+2;
+    A.fromBufferAttribute(pos, ia); B.fromBufferAttribute(pos, ib); C.fromBufferAttribute(pos, ic);
+    const cr = new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(C, A));
+    const area = cr.length() / 2;
+    if (area < 1e-8) continue;
+    const n = cr.normalize();
+    if (n.dot(new THREE.Vector3().add(A).add(B).add(C)) < 0) n.negate();   // face outward
+    total += area;
+    tris.push({ a: A.clone(), b: B.clone(), c: C.clone(), n, cum: total });
+  }
+  const pool = [];
+  for (let i = 0; i < N; i++) {
+    const r = Math.random() * total;
+    let lo = 0, hi = tris.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (tris[m].cum < r) lo = m + 1; else hi = m; }
+    const T = tris[lo];
+    let u = Math.random(), v = Math.random();
+    if (u + v > 1) { u = 1 - u; v = 1 - v; }
+    const p = new THREE.Vector3().copy(T.a)
+      .addScaledVector(new THREE.Vector3().subVectors(T.b, T.a), u)
+      .addScaledVector(new THREE.Vector3().subVectors(T.c, T.a), v);
+    pool.push({ p, n: T.n });
+  }
+  geo.computeBoundingSphere();
+  return { pool, extent: geo.boundingSphere.radius };
+}
+// A picker for one nutrient: a few random hot-spots it favours, plus scatter everywhere else
+function makePicker(sampler) {
+  const { pool, extent } = sampler;
+  const rp = () => pool[Math.floor(Math.random() * pool.length)];
+  const centers = Array.from({ length: 1 + Math.floor(Math.random() * 3) }, () => rp().p);
+  const R = extent * (0.3 + Math.random() * 0.5);
+  const frac = 0.3 + Math.random() * 0.45;
+  return () => {
+    if (Math.random() < frac) {
+      const c = centers[Math.floor(Math.random() * centers.length)];
+      for (let k = 0; k < 16; k++) { const q = rp(); if (q.p.distanceTo(c) < R) return q; }
+    }
+    return rp();
+  };
+}
+// Put an instance on a surface sample: sitting `off` above it, random spin / lean / size
+function placeOn(d, sm, off, lean, smin, smax) {
+  const sc = smin + Math.random() * (smax - smin);
+  d.position.copy(sm.p).addScaledVector(sm.n, off * sc);
+  d.quaternion.setFromUnitVectors(UP_AXIS, sm.n);
+  d.rotateY(Math.random() * Math.PI * 2);
+  d.rotateX((Math.random() - 0.5) * 2 * lean);
+  d.rotateZ((Math.random() - 0.5) * 2 * lean);
+  d.scale.setScalar(sc);
+  d.updateMatrix();
+}
+
 // Grass blades (fiber) — placed on actual surface vertices of the model
-function buildGrass(fiberNorm, surfacePts) {
+function buildGrass(fiberNorm, sampler) {
+  const pick = makePicker(sampler);
   const count  = Math.round(nlerp(50, 300, fiberNorm));
   const bladeH = nlerp(0.10, 0.55, fiberNorm);
   const bladeW = nlerp(0.025, 0.055, fiberNorm);
@@ -2275,13 +2349,7 @@ function buildGrass(fiberNorm, surfacePts) {
   const d  = new THREE.Object3D();
   const up = new THREE.Vector3(0, 1, 0);
   for (let i = 0; i < count; i++) {
-    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
-    const norm = sp.clone().normalize();
-    d.position.copy(norm).multiplyScalar(sp.length() + Math.random() * 0.05);
-    d.quaternion.setFromUnitVectors(up, norm);
-    d.rotateY(Math.random() * Math.PI * 2);
-    d.rotateX((Math.random() - 0.5) * 0.45);
-    d.updateMatrix();
+    placeOn(d, pick(), Math.random() * 0.05, 0.45, 0.45, 1.5);
     im.setMatrixAt(i, d.matrix);
   }
   im.instanceMatrix.needsUpdate = true;
@@ -2289,7 +2357,8 @@ function buildGrass(fiberNorm, surfacePts) {
 }
 
 // Fat blobs — placed on actual surface vertices of the model
-function buildFatBlobs(fatNorm, surfacePts) {
+function buildFatBlobs(fatNorm, sampler) {
+  const pick = makePicker(sampler);
   const count = Math.round(nlerp(18, 90, fatNorm));
   const blobR = nlerp(0.07, 0.22, fatNorm);
   const geo   = new THREE.SphereGeometry(blobR, 5, 4);
@@ -2300,10 +2369,7 @@ function buildFatBlobs(fatNorm, surfacePts) {
   const im = new THREE.InstancedMesh(geo, mat, count);
   const d  = new THREE.Object3D();
   for (let i = 0; i < count; i++) {
-    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
-    const norm = sp.clone().normalize();
-    d.position.copy(norm).multiplyScalar(sp.length() + blobR * 0.55);
-    d.updateMatrix();
+    placeOn(d, pick(), blobR * 0.55, 0.0, 0.5, 1.5);
     im.setMatrixAt(i, d.matrix);
   }
   im.instanceMatrix.needsUpdate = true;
@@ -2324,7 +2390,8 @@ function makeStarShape(outerR, innerR) {
 }
 
 // Vitamin stars: flat red six-pointed stars sitting on the surface
-function buildVitaminHexagons(vitaminNorm, surfacePts) {
+function buildVitaminHexagons(vitaminNorm, sampler) {
+  const pick = makePicker(sampler);
   const count = Math.round(nlerp(12, 100, vitaminNorm));
   const r     = nlerp(0.06, 0.15, vitaminNorm);
   const shape = makeStarShape(r, r * 0.38);
@@ -2338,12 +2405,7 @@ function buildVitaminHexagons(vitaminNorm, surfacePts) {
   const d  = new THREE.Object3D();
   const up = new THREE.Vector3(0, 1, 0);
   for (let i = 0; i < count; i++) {
-    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
-    const norm = sp.clone().normalize();
-    d.position.copy(norm).multiplyScalar(sp.length() + 0.015);
-    d.quaternion.setFromUnitVectors(up, norm); // flat face points outward along surface normal
-    d.rotateY(Math.random() * Math.PI * 2);   // random spin
-    d.updateMatrix();
+    placeOn(d, pick(), 0.015, 0.5, 0.55, 1.6);
     im.setMatrixAt(i, d.matrix);
   }
   im.instanceMatrix.needsUpdate = true;
@@ -2362,7 +2424,8 @@ function makeRingShape(outerR, innerR) {
 
 // Carb rings: flat hollow rings (donuts) with a little thickness, in varying
 // shades of blue, sitting on the surface
-function buildCarbRings(carbsNorm, surfacePts) {
+function buildCarbRings(carbsNorm, sampler) {
+  const pick = makePicker(sampler);
   const count  = Math.round(nlerp(8, 70, carbsNorm));
   const outerR = nlerp(0.07, 0.17, carbsNorm);
   const shape  = makeRingShape(outerR, outerR * 0.45);
@@ -2380,12 +2443,7 @@ function buildCarbRings(carbsNorm, surfacePts) {
   const up  = new THREE.Vector3(0, 1, 0);
   const col = new THREE.Color();
   for (let i = 0; i < count; i++) {
-    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
-    const norm = sp.clone().normalize();
-    d.position.copy(norm).multiplyScalar(sp.length() + 0.015);
-    d.quaternion.setFromUnitVectors(up, norm); // flat face points outward along surface normal
-    d.rotateY(Math.random() * Math.PI * 2);   // random spin
-    d.updateMatrix();
+    placeOn(d, pick(), 0.015, 0.5, 0.55, 1.6);
     im.setMatrixAt(i, d.matrix);
 
     // Varying shades of blue — from pale sky-blue to deep navy
@@ -2432,7 +2490,8 @@ function buildDoubleHelixGeometry(height, radius, turns, tubeR, rungCount) {
 }
 
 // Protein helices: small white double-helix structures standing on the surface
-function buildProteinHelices(proteinNorm, surfacePts) {
+function buildProteinHelices(proteinNorm, sampler) {
+  const pick = makePicker(sampler);
   const count  = Math.round(nlerp(10, 80, proteinNorm));
   const height = nlerp(0.18, 0.45, proteinNorm);
   const geo    = buildDoubleHelixGeometry(height, height * 0.18, 2.5, height * 0.045, 5);
@@ -2443,12 +2502,7 @@ function buildProteinHelices(proteinNorm, surfacePts) {
   const d  = new THREE.Object3D();
   const up = new THREE.Vector3(0, 1, 0);
   for (let i = 0; i < count; i++) {
-    const sp   = surfacePts[Math.floor(Math.random() * surfacePts.length)];
-    const norm = sp.clone().normalize();
-    d.position.copy(norm).multiplyScalar(sp.length() + 0.01);
-    d.quaternion.setFromUnitVectors(up, norm); // helix axis points outward along surface normal
-    d.rotateY(Math.random() * Math.PI * 2);   // random spin
-    d.updateMatrix();
+    placeOn(d, pick(), 0.01, 0.5, 0.55, 1.6);
     im.setMatrixAt(i, d.matrix);
   }
   im.instanceMatrix.needsUpdate = true;
@@ -2535,13 +2589,20 @@ function buildMesh(img, mount, data) {
 
   // Base shape from food category; sugar drives spike intensity
   const cat    = data?.foodCategory || 'carb';
-  const spikeP = nlerp(0.04, 0.45, sugarNorm);
-  const spkMax = nlerp(0.40, 2.20, sugarNorm);
-  const BUMP   = 0.22;
+  const spikeP = nlerp(0.07, 0.5, sugarNorm);
+  const spkMax = nlerp(0.70, 2.60, sugarNorm);
+  const BUMP   = 0.38;
 
   const geo = buildBaseGeometry(cat);
   const pos = geo.attributes.position;
   const dispMap = new Map();
+  // Big, lopsided lumps and dents so no two foods share a silhouette
+  const lobes = Array.from({ length: 4 + Math.floor(Math.random() * 4) }, () => {
+    const v = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+    return { v, a: (0.35 + Math.random() * 0.75) * (Math.random() < 0.62 ? 1 : -0.8), w: 0.07 + Math.random() * 0.3 };
+  });
+  const squash = [0.7 + Math.random() * 0.75, 0.7 + Math.random() * 0.75, 0.7 + Math.random() * 0.75];
+  const dirV = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
     const key=`${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
@@ -2551,21 +2612,26 @@ function buildMesh(img, mount, data) {
         ? (Math.random()*spkMax + 0.3) * (Math.random()<0.5?1:-1)
         : (Math.random()-0.5)*BUMP);
     }
-    const disp = dispMap.get(key);
     const r = Math.sqrt(x*x+y*y+z*z);
     if (r < 0.001) continue;
+    dirV.set(x/r, y/r, z/r);
+    let disp = dispMap.get(key);
+    for (const L of lobes) disp += L.a * Math.exp((dirV.dot(L.v) - 1) / L.w);
+    disp = Math.max(disp, -0.55 * r);
     const s = (r+disp)/r;
-    pos.setXYZ(i, x*s, y*s, z*s);
+    pos.setXYZ(i, x*s*squash[0], y*s*squash[1], z*s*squash[2]);
+  }
+  // Keep the exaggerated shape inside the frame: size by the typical radius, so a few long spikes may still poke out
+  {
+    const rs = []; for (let i = 0; i < pos.count; i++) rs.push(Math.hypot(pos.getX(i), pos.getY(i), pos.getZ(i)));
+    rs.sort((a, b) => a - b);
+    const k = Math.max(0.55, Math.min(1.1, 1.65 / rs[Math.floor(rs.length * 0.8)]));
+    for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k, pos.getZ(i) * k);
   }
   pos.needsUpdate=true; geo.computeVertexNormals();
 
   // Collect unique surface points for grass / blob placement
-  const surfacePts=[], seen=new Set();
-  for (let i=0; i<pos.count; i++) {
-    const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
-    const key=`${Math.round(x*40)},${Math.round(y*40)},${Math.round(z*40)}`;
-    if (!seen.has(key)) { seen.add(key); surfacePts.push(new THREE.Vector3(x,y,z)); }
-  }
+  const sampler = buildSurfaceSampler(geo);
 
   const mat=new THREE.MeshStandardMaterial({
     map:tex, normalMap:normalTex, normalScale:new THREE.Vector2(0.85,0.85),
@@ -2578,11 +2644,11 @@ function buildMesh(img, mount, data) {
   }
   mesh=new THREE.Mesh(geo,mat); scene.add(mesh);
 
-  if (fiberNorm   > 0.06) buildGrass(fiberNorm, surfacePts);
-  if (fatNorm     > 0.06) buildFatBlobs(fatNorm, surfacePts);
-  if (vitaminNorm > 0.06) buildVitaminHexagons(vitaminNorm, surfacePts);
-  if (carbsNorm   > 0.06) buildCarbRings(carbsNorm, surfacePts);
-  if (proteinNorm > 0.06) buildProteinHelices(proteinNorm, surfacePts);
+  if (fiberNorm   > 0.06) buildGrass(fiberNorm, sampler);
+  if (fatNorm     > 0.06) buildFatBlobs(fatNorm, sampler);
+  if (vitaminNorm > 0.06) buildVitaminHexagons(vitaminNorm, sampler);
+  if (carbsNorm   > 0.06) buildCarbRings(carbsNorm, sampler);
+  if (proteinNorm > 0.06) buildProteinHelices(proteinNorm, sampler);
 }
 
 // ── Shadow — drawn on a plain 2D canvas, never touched by the shader ──────
@@ -3471,6 +3537,7 @@ function makeNutrientAscii() {
   };
   // Colours matching the 3D models, brightened for the dark-blue background
   const COLOR = { fat: '#ffd21a', fiber: '#55ee66', vitamin: '#ff5560', carbs: '#6ec6ff', protein: '#ffffff', sugar: '#ffa040' };
+  const LABEL = { fat: 'fat', fiber: 'fiber', vitamin: 'vitamin C', carbs: 'carbs', protein: 'protein', sugar: 'sugar' };
   const UPRIGHT = { fiber: true, protein: true };
   const FLAT = { vitamin: true, carbs: true };   // flat shapes: keep them mostly face-on so the outline reads
 
@@ -3511,7 +3578,7 @@ function makeNutrientAscii() {
         }
         if (i % COLS === COLS - 1) art += '\n';
       });
-      sprites.push({ name, color: COLOR[name], art: art.trimEnd() });
+      sprites.push({ name, color: COLOR[name], label: LABEL[name], art: art.trimEnd() });
     }
   }
   renderer.dispose();
@@ -3530,7 +3597,8 @@ function makeNutrientAscii() {
   const qrBox = document.getElementById('ph-qr');
   const flow = document.getElementById('ph-flow');
   function fillPlaceholder() {
-    const count = Math.ceil((innerWidth * innerHeight) / (22 * 5.5 * text.length) * 1.2);
+    const fs = parseFloat(getComputedStyle(document.getElementById('placeholder-text')).fontSize) || 22;
+    const count = Math.ceil((innerWidth * innerHeight) / (fs * fs / 4 * text.length) * 1.2);
     if (flow.dataset.count == count) return;
     flow.dataset.count = count;
     flow.textContent = '';
@@ -3541,11 +3609,17 @@ function makeNutrientAscii() {
       if (SPRITES.length && i === nextArt) {
         if (!bag.length) bag = SPRITES.slice().sort(() => Math.random() - 0.5);
         const sp = bag.pop();
+        const fig = document.createElement('div');
+        fig.className = 'ph-art';
+        fig.style.color = sp.color;
         const pre = document.createElement('pre');
         pre.className = 'ph-ascii';
         pre.textContent = sp.art;
-        pre.style.color = sp.color;
-        half.appendChild(pre);
+        const nm = document.createElement('div');
+        nm.className = 'ph-art-name';
+        nm.textContent = sp.label;
+        fig.append(pre, nm);
+        half.appendChild(fig);
         nextArt += 40 + Math.floor(Math.random() * 20);
       }
       const sp = document.createElement('span');
